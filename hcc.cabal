@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 36a6d79c8f95fe2a2c5826e348d501a40711dc0093063b462781b38c3144c00d
+-- hash: 780aaa7aa189c848ff24057960e3530bdba30586af29dd47a63ccceb51570557
 
 name:           hcc
 version:        0.1.0.0
@@ -28,6 +28,7 @@ source-repository head
 library
   exposed-modules:
       Lib
+      Parser
       Tokenizer
   other-modules:
       Paths_hcc
@@ -35,6 +36,7 @@ library
       src
   build-depends:
       base >=4.7 && <5
+    , containers
     , megaparsec >=8.0 && <9
     , text
   default-language: Haskell2010
@@ -48,6 +50,7 @@ executable hcc-exe
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
+    , containers
     , hcc
     , megaparsec >=8.0 && <9
     , text
@@ -63,6 +66,7 @@ test-suite hcc-test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
+    , containers
     , hcc
     , megaparsec >=8.0 && <9
     , text
