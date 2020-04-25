@@ -6,6 +6,13 @@ author:              "mt-caret"
 maintainer:          "mtakeda.enigsol@gmail.com"
 copyright:           "2020 mt-caret"
 
+ghc-options:
+- -Wall
+- -Wcompat
+- -Wincomplete-record-updates
+- -Wincomplete-uni-patterns
+- -Wredundant-constraints
+
 extra-source-files:
 - README.md
 - ChangeLog.md

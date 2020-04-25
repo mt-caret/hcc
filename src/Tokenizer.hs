@@ -1,3 +1,4 @@
+{-# Language OverloadedStrings #-}
 module Tokenizer
   ( run
   , Token(..)
@@ -34,6 +35,12 @@ data Token
   | Minus !LineState
   | Slash !LineState
   | Asterisk !LineState
+  | L !LineState
+  | LEq !LineState
+  | G !LineState
+  | GEq !LineState
+  | Eq !LineState
+  | Neq !LineState
   deriving (Eq, Ord)
 
 instance Show Token where
@@ -44,6 +51,12 @@ instance Show Token where
   show (Minus    _) = "-"
   show (Slash    _) = "/"
   show (Asterisk _) = "*"
+  show (L        _) = "<"
+  show (LEq      _) = "<="
+  show (G        _) = ">"
+  show (GEq      _) = ">="
+  show (Eq       _) = "=="
+  show (Neq      _) = "!="
 
 getLineState :: Token -> LineState
 getLineState (Number _ ls) = ls
@@ -53,6 +66,12 @@ getLineState (Plus     ls) = ls
 getLineState (Minus    ls) = ls
 getLineState (Slash    ls) = ls
 getLineState (Asterisk ls) = ls
+getLineState (L        ls) = ls
+getLineState (LEq      ls) = ls
+getLineState (G        ls) = ls
+getLineState (GEq      ls) = ls
+getLineState (Eq       ls) = ls
+getLineState (Neq      ls) = ls
 
 getLineOfToken :: Token -> String
 getLineOfToken = T.unpack . line . getLineState
@@ -60,6 +79,7 @@ getLineOfToken = T.unpack . line . getLineState
 getSourcePosOfToken :: Token -> MP.SourcePos
 getSourcePosOfToken = sourcePos . getLineState
 
+getLineStatep :: Parser LineState
 getLineStatep = do
   ps <- MP.statePosState <$> MP.getParserState
   return $ LineState (MP.pstateInput ps) (MP.pstateSourcePos ps)
@@ -70,13 +90,19 @@ whitespace = ($> ()) . MP.many . MP.oneOf $ [' ', '\t', '\n']
 reserved :: Parser Token
 reserved =
   foldr1 (<|>)
-    . fmap (\(t, ch) -> (t <$ MP.char ch) <*> getLineStatep)
-    $ [ (LParen  , '(')
-      , (RParen  , ')')
-      , (Plus    , '+')
-      , (Minus   , '-')
-      , (Slash   , '/')
-      , (Asterisk, '*')
+    . fmap (\(t, s) -> (t <$ MP.string s) <*> getLineStatep)
+    $ [ (LParen  , "(")
+      , (RParen  , ")")
+      , (Plus    , "+")
+      , (Minus   , "-")
+      , (Slash   , "/")
+      , (Asterisk, "*")
+      , (L       , "<")
+      , (LEq     , "<=")
+      , (G       , ">")
+      , (GEq     , ">=")
+      , (Eq      , "==")
+      , (Neq     , "!=")
       ]
 
 nonDigitChar :: Parser Char
@@ -85,7 +111,9 @@ nonDigitChar =
 
 number :: Parser Token
 number = Number . read <$> numberString <*> getLineStatep
-  where numberString = (:) <$> nonDigitChar <*> MP.many MP.digitChar
+ where
+  numberString =
+    ((:) <$> nonDigitChar <*> MP.many MP.digitChar) <|> (pure <$> MP.digitChar)
 
 token :: Parser Token
 token = reserved <|> number
