@@ -29,6 +29,8 @@ data LineState = LineState
 
 data Token
   = Number Int !LineState
+  | Ident String !LineState
+  | Return !LineState
   | LParen !LineState
   | RParen !LineState
   | Plus !LineState
@@ -41,37 +43,47 @@ data Token
   | GEq !LineState
   | Eq !LineState
   | Neq !LineState
+  | Assign !LineState
+  | Semicolon !LineState
   deriving (Eq, Ord)
 
 instance Show Token where
-  show (Number n _) = show n
-  show (LParen   _) = "("
-  show (RParen   _) = ")"
-  show (Plus     _) = "+"
-  show (Minus    _) = "-"
-  show (Slash    _) = "/"
-  show (Asterisk _) = "*"
-  show (L        _) = "<"
-  show (LEq      _) = "<="
-  show (G        _) = ">"
-  show (GEq      _) = ">="
-  show (Eq       _) = "=="
-  show (Neq      _) = "!="
+  show (Number n  _) = show n
+  show (Ident  ch _) = show ch
+  show (Return    _) = "return"
+  show (LParen    _) = "("
+  show (RParen    _) = ")"
+  show (Plus      _) = "+"
+  show (Minus     _) = "-"
+  show (Slash     _) = "/"
+  show (Asterisk  _) = "*"
+  show (L         _) = "<"
+  show (LEq       _) = "<="
+  show (G         _) = ">"
+  show (GEq       _) = ">="
+  show (Eq        _) = "=="
+  show (Neq       _) = "!="
+  show (Assign    _) = "="
+  show (Semicolon _) = ";"
 
 getLineState :: Token -> LineState
-getLineState (Number _ ls) = ls
-getLineState (LParen   ls) = ls
-getLineState (RParen   ls) = ls
-getLineState (Plus     ls) = ls
-getLineState (Minus    ls) = ls
-getLineState (Slash    ls) = ls
-getLineState (Asterisk ls) = ls
-getLineState (L        ls) = ls
-getLineState (LEq      ls) = ls
-getLineState (G        ls) = ls
-getLineState (GEq      ls) = ls
-getLineState (Eq       ls) = ls
-getLineState (Neq      ls) = ls
+getLineState (Number _ ls ) = ls
+getLineState (Ident  _ ls ) = ls
+getLineState (Return    ls) = ls
+getLineState (LParen    ls) = ls
+getLineState (RParen    ls) = ls
+getLineState (Plus      ls) = ls
+getLineState (Minus     ls) = ls
+getLineState (Slash     ls) = ls
+getLineState (Asterisk  ls) = ls
+getLineState (L         ls) = ls
+getLineState (LEq       ls) = ls
+getLineState (G         ls) = ls
+getLineState (GEq       ls) = ls
+getLineState (Eq        ls) = ls
+getLineState (Neq       ls) = ls
+getLineState (Assign    ls) = ls
+getLineState (Semicolon ls) = ls
 
 getLineOfToken :: Token -> String
 getLineOfToken = T.unpack . line . getLineState
@@ -91,19 +103,29 @@ reserved :: Parser Token
 reserved =
   foldr1 (<|>)
     . fmap (\(t, s) -> (t <$ MP.string s) <*> getLineStatep)
-    $ [ (LParen  , "(")
-      , (RParen  , ")")
-      , (Plus    , "+")
-      , (Minus   , "-")
-      , (Slash   , "/")
-      , (Asterisk, "*")
-      , (L       , "<")
-      , (LEq     , "<=")
-      , (G       , ">")
-      , (GEq     , ">=")
-      , (Eq      , "==")
-      , (Neq     , "!=")
+    $ [ (LParen   , "(")
+      , (RParen   , ")")
+      , (Plus     , "+")
+      , (Minus    , "-")
+      , (Slash    , "/")
+      , (Asterisk , "*")
+      , (LEq      , "<=")
+      , (L        , "<")
+      , (GEq      , ">=")
+      , (G        , ">")
+      , (Eq       , "==")
+      , (Neq      , "!=")
+      , (Assign   , "=")
+      , (Semicolon, ";")
+      , (Return   , "return")
       ]
+
+ident :: Parser Token
+ident =
+  Ident
+    <$> MP.some (MP.satisfy C.isAsciiLower)
+    <*> getLineStatep
+    <?> "variable name"
 
 nonDigitChar :: Parser Char
 nonDigitChar =
@@ -116,7 +138,7 @@ number = Number . read <$> numberString <*> getLineStatep
     ((:) <$> nonDigitChar <*> MP.many MP.digitChar) <|> (pure <$> MP.digitChar)
 
 token :: Parser Token
-token = reserved <|> number
+token = reserved <|> number <|> ident
 
 tokens :: Parser [Token]
 tokens = token `MP.sepEndBy` whitespace <* MP.eof

@@ -31,6 +31,7 @@ dependencies:
 - megaparsec >= 8.0 && < 9
 - text
 - containers
+- mtl
 
 library:
   source-dirs: src

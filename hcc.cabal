@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 96d1607af4a9204e4b3c722f3383589c913c83f80f6ec094d73586c6e6558821
+-- hash: 7f90cfd6198296c0523430e3efeb26cd0c58ace32bd5d1228932f3336d175cb3
 
 name:           hcc
 version:        0.1.0.0
@@ -38,6 +38,7 @@ library
       base >=4.7 && <5
     , containers
     , megaparsec >=8.0 && <9
+    , mtl
     , text
   default-language: Haskell2010
 
@@ -53,6 +54,7 @@ executable hcc-exe
     , containers
     , hcc
     , megaparsec >=8.0 && <9
+    , mtl
     , text
   default-language: Haskell2010
 
@@ -69,5 +71,6 @@ test-suite hcc-test
     , containers
     , hcc
     , megaparsec >=8.0 && <9
+    , mtl
     , text
   default-language: Haskell2010

@@ -24,7 +24,10 @@ import qualified Text.Megaparsec.Error         as MPE
 type Parser = MP.Parsec V.Void CTokens
 
 data Ast
-  = Add Ast Ast
+  = Ident String
+  | Assign Ast Ast
+  | Return Ast
+  | Add Ast Ast
   | Sub Ast Ast
   | Mul Ast Ast
   | Div Ast Ast
@@ -79,13 +82,26 @@ instance MP.Stream CTokens where
     newSourcePos =
       maybe (MP.pstateSourcePos ps) Tokenizer.getSourcePosOfToken currentToken
 
+ident :: Parser Ast
+ident = Ident <$> MP.token test expected
+ where
+  test (Tokenizer.Ident str _) = Just str
+  test _                       = Nothing
+  expected = S.singleton . MPE.Label . NE.fromList $ "variable name"
 
-number :: Parser Int
-number = MP.token test expected
+number :: Parser Ast
+number = Num <$> MP.token test expected
  where
   test (Tokenizer.Number n _) = Just n
   test _                      = Nothing
   expected = S.singleton . MPE.Label . NE.fromList $ "number"
+
+return_ :: Parser ()
+return_ = () <$ MP.satisfy
+  (\case
+    Tokenizer.Return _ -> True
+    _                  -> False
+  )
 
 lparen :: Parser ()
 lparen = () <$ MP.satisfy
@@ -173,6 +189,20 @@ neq = () <$ MP.satisfy
     _               -> False
   )
 
+assign_ :: Parser ()
+assign_ = () <$ MP.satisfy
+  (\case
+    Tokenizer.Assign _ -> True
+    _                  -> False
+  )
+
+semicolon :: Parser ()
+semicolon = () <$ MP.satisfy
+  (\case
+    Tokenizer.Semicolon _ -> True
+    _                     -> False
+  )
+
 -- left-associative binary op which parses the following: base (`op` base)*
 binOpMany :: Parser a -> Parser (a -> a) -> Parser a
 binOpMany base op = foldl (\x f -> f x) <$> base <*> MP.many op
@@ -184,11 +214,19 @@ binOpMany base op = foldl (\x f -> f x) <$> base <*> MP.many op
 applyR :: (a -> a -> a) -> Parser b -> Parser a -> Parser (a -> a)
 applyR op opParser base = flip op <$> (opParser *> base)
 
-ast :: Parser Ast
-ast = expr <* MP.eof
+program :: Parser [Ast]
+program = MP.some stmt <* MP.eof
+
+stmt :: Parser Ast
+stmt = expr <* semicolon <|> (Return <$> MP.between return_ semicolon expr)
 
 expr :: Parser Ast
-expr = equality
+expr = assign
+
+assign :: Parser Ast
+assign = do
+  lv <- equality
+  (Assign lv <$> (assign_ *> assign)) <|> pure lv
 
 equality :: Parser Ast
 equality = binOpMany base op
@@ -228,10 +266,10 @@ unary :: Parser Ast
 unary = op <*> primary where op = (id <$ plus) <|> (Neg <$ minus) <|> pure id
 
 primary :: Parser Ast
-primary = (Num <$> number) <|> MP.between lparen rparen expr
+primary = number <|> ident <|> MP.between lparen rparen expr
 
 run
   :: String
   -> [Tokenizer.Token]
-  -> Either (MP.ParseErrorBundle CTokens V.Void) Ast
-run name tokens = MP.parse ast name (CTokens tokens)
+  -> Either (MP.ParseErrorBundle CTokens V.Void) [Ast]
+run name tokens = MP.parse program name (CTokens tokens)
