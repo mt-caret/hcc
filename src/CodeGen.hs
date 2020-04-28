@@ -1,11 +1,9 @@
 module CodeGen where
 
+import Control.Monad.State.Strict
+import qualified Data.Map as M
 import qualified Parser
-
-import           Text.Printf
-import           Control.Monad.State.Strict
-
-import qualified Data.Map                      as M
+import Text.Printf
 
 codePrelude :: [String]
 codePrelude = [".intel_syntax noprefix", ".global main", "main:"]
@@ -15,7 +13,8 @@ popStack = ["  pop rdi", "  pop rax"]
 pushStack = ["  push rax"]
 cmpThenPush = ["  sete al", "  movzb rax, al"] ++ pushStack
 
-data Scope = Scope { variables :: M.Map String Int, nextOffset :: Int }
+data Scope = Scope {variables :: M.Map String Int, nextOffset :: Int}
+
 type CodeGen a = StateT Scope (Either String) a
 
 initScope :: Scope
@@ -43,15 +42,15 @@ genCode (Parser.Assign (Parser.Ident ident) rval) = do
   unless doesVarExist $ createNewVar ident
   addrCode <- getAddress ident
   rvalCode <- genCode rval
-  return
-    $  addrCode
-    ++ rvalCode
-    ++ popStack
-    ++ ["  mov [rax], rdi", "  push rdi"]
+  return $
+    addrCode
+      ++ rvalCode
+      ++ popStack
+      ++ ["  mov [rax], rdi", "  push rdi"]
 genCode (Parser.Assign l _) =
-  genCodeError
-    $ "expected left-hand in assignment expression to be an identifier but found: "
-    ++ show l
+  genCodeError $
+    "expected left-hand in assignment expression to be an identifier but found: "
+      ++ show l
 genCode (Parser.Return a) = do
   aCode <- genCode a
   return $ aCode ++ ["  pop rax", "  mov rsp, rbp", "  pop rbp", "  ret"]
@@ -79,9 +78,9 @@ genCode (Parser.L a b) = do
 genCode (Parser.LEq a b) = do
   abCode <- genTwoPop a b
   return $ abCode ++ ["  setle rax, rdi"] ++ cmpThenPush
-genCode (Parser.G   a b) = genCode (Parser.L b a)
+genCode (Parser.G a b) = genCode (Parser.L b a)
 genCode (Parser.GEq a b) = genCode (Parser.LEq b a)
-genCode (Parser.Eq  a b) = do
+genCode (Parser.Eq a b) = do
   abCode <- genTwoPop a b
   return $ abCode ++ ["  cmp rax, rdi"] ++ cmpThenPush
 genCode (Parser.Neq a b) = do
@@ -97,12 +96,12 @@ genTwoPop a b = do
 generateCode :: [Parser.Ast] -> Either String [String]
 generateCode program = do
   (code, scope) <- runStateT (traverse genCode program) initScope
-  return
-    $  codePrelude
-    ++ [ "  push rbp"
-       , "  mov rbp, rsp"
-       , "  sub rsp, " ++ show (nextOffset scope)
-       , "  # end of prelude"
-       ]
-    ++ concatMap (\c -> c ++ ["  pop rax"]) code
-    ++ ["  # start of postlude", "  mov rsp, rbp", "  pop rbp", "  ret"]
+  return $
+    codePrelude
+      ++ [ "  push rbp",
+           "  mov rbp, rsp",
+           "  sub rsp, " ++ show (nextOffset scope),
+           "  # end of prelude"
+         ]
+      ++ concatMap (\c -> c ++ ["  pop rax"]) code
+      ++ ["  # start of postlude", "  mov rsp, rbp", "  pop rbp", "  ret"]

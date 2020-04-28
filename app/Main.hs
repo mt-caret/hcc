@@ -1,18 +1,16 @@
-{-# Language OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings #-}
+
 module Main where
 
-import qualified Tokenizer
-import qualified Parser
 import qualified CodeGen
-
-import           System.Environment
-import           System.IO
-import           Control.Monad
-
-import qualified Data.Text                     as T
-import qualified Data.Text.IO                  as TIO
-
-import qualified Text.Megaparsec               as MP
+import Control.Monad
+import qualified Data.Text as T
+import qualified Data.Text.IO as TIO
+import qualified Parser
+import System.Environment
+import System.IO
+import qualified Text.Megaparsec as MP
+import qualified Tokenizer
 
 ePutStrLn :: String -> IO ()
 ePutStrLn = hPutStrLn stderr
@@ -28,9 +26,9 @@ runCompiler = do
   args <- getArgs
   case args of
     [arg] -> case Tokenizer.run "args" $ T.pack arg of
-      Left  err    -> ePutStrLn $ MP.errorBundlePretty err
+      Left err -> ePutStrLn $ MP.errorBundlePretty err
       Right tokens -> case Parser.run "tokens" tokens of
-        Left  err     -> ePutStrLn $ MP.errorBundlePretty err
+        Left err -> ePutStrLn $ MP.errorBundlePretty err
         Right program -> case CodeGen.generateCode program of
           Left err -> ePutStrLn err
           Right code ->

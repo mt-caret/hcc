@@ -1,25 +1,20 @@
-{-# Language LambdaCase #-}
-{-# Language FlexibleInstances #-}
-{-# Language TypeFamilies #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE TypeFamilies #-}
+
 module Parser where
 
-import           Prelude                 hiding ( div )
-
+import Data.List
+import Data.List.NonEmpty (NonEmpty (..))
+import qualified Data.List.NonEmpty as NE
+import Data.Proxy
+import qualified Data.Set as S
+import qualified Data.Void as V
+import Text.Megaparsec ((<|>))
+import qualified Text.Megaparsec as MP
+import qualified Text.Megaparsec.Error as MPE
 import qualified Tokenizer
-
-import           Data.Proxy
-import           Data.List.NonEmpty             ( NonEmpty(..) )
-import           Data.List
-
-import qualified Data.Void                     as V
-import qualified Data.Set                      as S
-import qualified Data.List.NonEmpty            as NE
---import qualified Data.Text                     as T
-
-import           Text.Megaparsec                ( (<|>) )
-
-import qualified Text.Megaparsec               as MP
-import qualified Text.Megaparsec.Error         as MPE
+import Prelude hiding (div)
 
 type Parser = MP.Parsec V.Void CTokens
 
@@ -41,7 +36,7 @@ data Ast
   | Num Int
   deriving (Show, Eq)
 
-newtype CTokens = CTokens [ Tokenizer.Token ]
+newtype CTokens = CTokens [Tokenizer.Token]
 
 instance MP.Stream CTokens where
   type Token CTokens = Tokenizer.Token
@@ -51,157 +46,187 @@ instance MP.Stream CTokens where
   chunkToTokens Proxy = id
   chunkLength Proxy = length
   chunkEmpty Proxy = null
-  take1_ (CTokens []      ) = Nothing
+  take1_ (CTokens []) = Nothing
   take1_ (CTokens (t : ts)) = Just (t, CTokens ts)
   takeN_ n (CTokens []) | n > 0 = Nothing
-  takeN_ n (CTokens xs)         = Just . fmap CTokens $ splitAt n xs
+  takeN_ n (CTokens xs) = Just . fmap CTokens $ splitAt n xs
   takeWhile_ p (CTokens ts) = CTokens <$> go ts []
-   where
-    go [] accum = (reverse accum, [])
-    go (x : xs) accum =
-      if p x then go xs (x : accum) else (reverse accum, x : xs)
+    where
+      go [] accum = (reverse accum, [])
+      go (x : xs) accum =
+        if p x then go xs (x : accum) else (reverse accum, x : xs)
   showTokens Proxy (t :| []) = show t
   showTokens Proxy (t :| ts) = intercalate ", " $ show <$> (t : ts)
   reachOffset o ps =
-    ( offendingLine
-    , MP.PosState { MP.pstateInput      = CTokens rawTokens
-                  , MP.pstateOffset     = totalOffset
-                  , MP.pstateSourcePos  = newSourcePos
-                  , MP.pstateTabWidth   = MP.pstateTabWidth ps
-                  , MP.pstateLinePrefix = MP.pstateLinePrefix ps
-                  }
+    ( offendingLine,
+      MP.PosState
+        { MP.pstateInput = CTokens rawTokens,
+          MP.pstateOffset = totalOffset,
+          MP.pstateSourcePos = newSourcePos,
+          MP.pstateTabWidth = MP.pstateTabWidth ps,
+          MP.pstateLinePrefix = MP.pstateLinePrefix ps
+        }
     )
-   where
-    (CTokens rawTokens) = MP.pstateInput ps
-    totalOffset         = o + MP.pstateOffset ps
-    currentToken        = if totalOffset >= length rawTokens
-      then Nothing
-      else Just $ rawTokens !! totalOffset
-    offendingLine =
-      maybe "<empty string>" Tokenizer.getLineOfToken currentToken
-    newSourcePos =
-      maybe (MP.pstateSourcePos ps) Tokenizer.getSourcePosOfToken currentToken
+    where
+      (CTokens rawTokens) = MP.pstateInput ps
+      totalOffset = o + MP.pstateOffset ps
+      currentToken =
+        if totalOffset >= length rawTokens
+          then Nothing
+          else Just $ rawTokens !! totalOffset
+      offendingLine =
+        maybe "<empty string>" Tokenizer.getLineOfToken currentToken
+      newSourcePos =
+        maybe (MP.pstateSourcePos ps) Tokenizer.getSourcePosOfToken currentToken
 
 ident :: Parser Ast
 ident = Ident <$> MP.token test expected
- where
-  test (Tokenizer.Ident str _) = Just str
-  test _                       = Nothing
-  expected = S.singleton . MPE.Label . NE.fromList $ "variable name"
+  where
+    test (Tokenizer.Ident str _) = Just str
+    test _ = Nothing
+    expected = S.singleton . MPE.Label . NE.fromList $ "variable name"
 
 number :: Parser Ast
 number = Num <$> MP.token test expected
- where
-  test (Tokenizer.Number n _) = Just n
-  test _                      = Nothing
-  expected = S.singleton . MPE.Label . NE.fromList $ "number"
+  where
+    test (Tokenizer.Number n _) = Just n
+    test _ = Nothing
+    expected = S.singleton . MPE.Label . NE.fromList $ "number"
 
 return_ :: Parser ()
-return_ = () <$ MP.satisfy
-  (\case
-    Tokenizer.Return _ -> True
-    _                  -> False
-  )
+return_ =
+  ()
+    <$ MP.satisfy
+      ( \case
+          Tokenizer.Return _ -> True
+          _ -> False
+      )
 
 lparen :: Parser ()
-lparen = () <$ MP.satisfy
-  (\case
-    Tokenizer.LParen _ -> True
-    _                  -> False
-  )
+lparen =
+  ()
+    <$ MP.satisfy
+      ( \case
+          Tokenizer.LParen _ -> True
+          _ -> False
+      )
 
 rparen :: Parser ()
-rparen = () <$ MP.satisfy
-  (\case
-    Tokenizer.RParen _ -> True
-    _                  -> False
-  )
+rparen =
+  ()
+    <$ MP.satisfy
+      ( \case
+          Tokenizer.RParen _ -> True
+          _ -> False
+      )
 
 plus :: Parser ()
-plus = () <$ MP.satisfy
-  (\case
-    Tokenizer.Plus _ -> True
-    _                -> False
-  )
+plus =
+  ()
+    <$ MP.satisfy
+      ( \case
+          Tokenizer.Plus _ -> True
+          _ -> False
+      )
 
 minus :: Parser ()
-minus = () <$ MP.satisfy
-  (\case
-    Tokenizer.Minus _ -> True
-    _                 -> False
-  )
-
+minus =
+  ()
+    <$ MP.satisfy
+      ( \case
+          Tokenizer.Minus _ -> True
+          _ -> False
+      )
 
 slash :: Parser ()
-slash = () <$ MP.satisfy
-  (\case
-    Tokenizer.Slash _ -> True
-    _                 -> False
-  )
+slash =
+  ()
+    <$ MP.satisfy
+      ( \case
+          Tokenizer.Slash _ -> True
+          _ -> False
+      )
 
 asterisk :: Parser ()
-asterisk = () <$ MP.satisfy
-  (\case
-    Tokenizer.Asterisk _ -> True
-    _                    -> False
-  )
+asterisk =
+  ()
+    <$ MP.satisfy
+      ( \case
+          Tokenizer.Asterisk _ -> True
+          _ -> False
+      )
 
 l :: Parser ()
-l = () <$ MP.satisfy
-  (\case
-    Tokenizer.L _ -> True
-    _             -> False
-  )
+l =
+  ()
+    <$ MP.satisfy
+      ( \case
+          Tokenizer.L _ -> True
+          _ -> False
+      )
 
 leq :: Parser ()
-leq = () <$ MP.satisfy
-  (\case
-    Tokenizer.LEq _ -> True
-    _               -> False
-  )
-
+leq =
+  ()
+    <$ MP.satisfy
+      ( \case
+          Tokenizer.LEq _ -> True
+          _ -> False
+      )
 
 g :: Parser ()
-g = () <$ MP.satisfy
-  (\case
-    Tokenizer.G _ -> True
-    _             -> False
-  )
+g =
+  ()
+    <$ MP.satisfy
+      ( \case
+          Tokenizer.G _ -> True
+          _ -> False
+      )
 
 geq :: Parser ()
-geq = () <$ MP.satisfy
-  (\case
-    Tokenizer.GEq _ -> True
-    _               -> False
-  )
+geq =
+  ()
+    <$ MP.satisfy
+      ( \case
+          Tokenizer.GEq _ -> True
+          _ -> False
+      )
 
 eq :: Parser ()
-eq = () <$ MP.satisfy
-  (\case
-    Tokenizer.Eq _ -> True
-    _              -> False
-  )
+eq =
+  ()
+    <$ MP.satisfy
+      ( \case
+          Tokenizer.Eq _ -> True
+          _ -> False
+      )
 
 neq :: Parser ()
-neq = () <$ MP.satisfy
-  (\case
-    Tokenizer.Neq _ -> True
-    _               -> False
-  )
+neq =
+  ()
+    <$ MP.satisfy
+      ( \case
+          Tokenizer.Neq _ -> True
+          _ -> False
+      )
 
 assign_ :: Parser ()
-assign_ = () <$ MP.satisfy
-  (\case
-    Tokenizer.Assign _ -> True
-    _                  -> False
-  )
+assign_ =
+  ()
+    <$ MP.satisfy
+      ( \case
+          Tokenizer.Assign _ -> True
+          _ -> False
+      )
 
 semicolon :: Parser ()
-semicolon = () <$ MP.satisfy
-  (\case
-    Tokenizer.Semicolon _ -> True
-    _                     -> False
-  )
+semicolon =
+  ()
+    <$ MP.satisfy
+      ( \case
+          Tokenizer.Semicolon _ -> True
+          _ -> False
+      )
 
 -- left-associative binary op which parses the following: base (`op` base)*
 binOpMany :: Parser a -> Parser (a -> a) -> Parser a
@@ -230,37 +255,37 @@ assign = do
 
 equality :: Parser Ast
 equality = binOpMany base op
- where
-  base = relational
-  eq_  = applyR Eq eq base
-  neq_ = applyR Neq neq base
-  op   = eq_ <|> neq_
+  where
+    base = relational
+    eq_ = applyR Eq eq base
+    neq_ = applyR Neq neq base
+    op = eq_ <|> neq_
 
 relational :: Parser Ast
 relational = binOpMany base op
- where
-  base = add
-  l_   = applyR L l base
-  leq_ = applyR LEq leq base
-  g_   = applyR G g base
-  geq_ = applyR GEq geq base
-  op   = l_ <|> leq_ <|> g_ <|> geq_
+  where
+    base = add
+    l_ = applyR L l base
+    leq_ = applyR LEq leq base
+    g_ = applyR G g base
+    geq_ = applyR GEq geq base
+    op = l_ <|> leq_ <|> g_ <|> geq_
 
 add :: Parser Ast
 add = binOpMany base op
- where
-  base = mul
-  add_ = applyR Add plus base
-  sub  = applyR Sub minus base
-  op   = add_ <|> sub
+  where
+    base = mul
+    add_ = applyR Add plus base
+    sub = applyR Sub minus base
+    op = add_ <|> sub
 
 mul :: Parser Ast
 mul = binOpMany base op
- where
-  base = unary
-  mul_ = applyR Mul asterisk base
-  div  = applyR Div slash base
-  op   = mul_ <|> div
+  where
+    base = unary
+    mul_ = applyR Mul asterisk base
+    div = applyR Div slash base
+    op = mul_ <|> div
 
 unary :: Parser Ast
 unary = op <*> primary where op = (id <$ plus) <|> (Neg <$ minus) <|> pure id
@@ -268,8 +293,8 @@ unary = op <*> primary where op = (id <$ plus) <|> (Neg <$ minus) <|> pure id
 primary :: Parser Ast
 primary = number <|> ident <|> MP.between lparen rparen expr
 
-run
-  :: String
-  -> [Tokenizer.Token]
-  -> Either (MP.ParseErrorBundle CTokens V.Void) [Ast]
+run ::
+  String ->
+  [Tokenizer.Token] ->
+  Either (MP.ParseErrorBundle CTokens V.Void) [Ast]
 run name tokens = MP.parse program name (CTokens tokens)
