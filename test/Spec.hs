@@ -64,7 +64,7 @@ runCompareEq cCode val = do
     Left errMsg -> assertFailure errMsg
     Right (evalResult, runResult) -> do
       evalResult @?= Just val
-      evalResult @?= runResult
+      runResult @?= evalResult
 
 compareTest :: TestName -> Int -> TestTree
 compareTest cCode val = testCase cCode $ runCompareEq cCode val
@@ -76,10 +76,20 @@ unitTests =
     $ fmap
       (uncurry compareTest)
       [ ("return 1;", 1),
+        ("return 0 < 1;", 1),
+        ("return 0 <= 0;", 1),
         ("return 7 - 8 + 3;", 2),
         ("a = 1; b = 2; return (a == b) + a;", 1),
         ("returnx = 4; return returnx;", 4),
-        ("ifx = 4; return ifx;", 4)
+        ("ifx = 4; return ifx;", 4),
+        ("if (1) return 2;", 2),
+        ("if (0) return 2; return 1;", 1),
+        ("if (1) return 2; else return 1;", 2),
+        ("if (0) return 2; else return 1;", 1),
+        ("a = 10; while (a) a = a - 1; return a;", 0),
+        ("a = 0; for (i = 0; i < 0; i = i + 1) a = a + 2; return a;", 0),
+        ("a = 0; for (i = 0; i < 2; i = i + 1) a = a + 2; return a;", 4),
+        ("a = 0; for (i = 0; i < 2; i = i + 1) a = a + 4; return a;", 8) -- this makes no sense!
       ]
 
 main :: IO ()
