@@ -40,8 +40,8 @@ toShellLine = fmap select . traverse (textToLine . T.pack)
 
 compareOutput :: Text -> IO (Either String (Maybe Int, Maybe Int))
 compareOutput cCode = runExceptT $ do
-  evalResult <- liftEither $ Parser.evaluate =<< parse cCode
-  asm <- liftEither $ CodeGen.generateCode =<< parse cCode
+  evalResult <- liftEither $ Parser.evaluate =<< parseResult
+  asm <- liftEither $ CodeGen.generateCode =<< parseResult
   binPath <-
     runAssembler
       =<< liftEither
@@ -51,6 +51,9 @@ compareOutput cCode = runExceptT $ do
         )
   runResult <- return . exitCodeToInt <$> runBinary binPath
   return (evalResult, runResult)
+  where
+    parseResult :: Parser.AstSym ast => Either String [ast]
+    parseResult = parse cCode
 
 runCompare :: String -> IO ()
 runCompare cCode = do
