@@ -48,24 +48,27 @@ data TokenType
 
 data Token = Token {tokenType :: TokenType, lineState :: !LineState} deriving (Eq, Ord)
 
+instance Show TokenType where
+  show (Number n) = show n
+  show (Ident ch) = show ch
+  show Return = "return"
+  show LParen = "("
+  show RParen = ")"
+  show Plus = "+"
+  show Minus = "-"
+  show Slash = "/"
+  show Asterisk = "*"
+  show L = "<"
+  show LEq = "<="
+  show G = ">"
+  show GEq = ">="
+  show Eq = "=="
+  show Neq = "!="
+  show Assign = "="
+  show Semicolon = ";"
+
 instance Show Token where
-  show (Token (Number n) _) = show n
-  show (Token (Ident ch) _) = show ch
-  show (Token Return _) = "return"
-  show (Token LParen _) = "("
-  show (Token RParen _) = ")"
-  show (Token Plus _) = "+"
-  show (Token Minus _) = "-"
-  show (Token Slash _) = "/"
-  show (Token Asterisk _) = "*"
-  show (Token L _) = "<"
-  show (Token LEq _) = "<_)="
-  show (Token G _) = ">"
-  show (Token GEq _) = ">_)="
-  show (Token Eq _) = "_)=_)="
-  show (Token Neq _) = "!_)="
-  show (Token Assign _) = "_)="
-  show (Token Semicolon _) = ";"
+  show = show . tokenType
 
 getLineOfToken :: Token -> String
 getLineOfToken = T.unpack . line . lineState
@@ -84,23 +87,25 @@ whitespace = ($> ()) . MP.many . MP.oneOf $ [' ', '\t', '\n']
 reserved :: Parser Token
 reserved =
   foldr1 (<|>)
-    . fmap (\(t, s) -> (Token t <$ MP.string s) <*> getLineStatep)
-    $ [ (LParen, "("),
-        (RParen, ")"),
-        (Plus, "+"),
-        (Minus, "-"),
-        (Slash, "/"),
-        (Asterisk, "*"),
-        (LEq, "<="),
-        (L, "<"),
-        (GEq, ">="),
-        (G, ">"),
-        (Eq, "=="),
-        (Neq, "!="),
-        (Assign, "="),
-        (Semicolon, ";"),
-        (Return, "return")
+    . fmap (\t -> (Token t <$ matchShow t) <*> getLineStatep)
+    $ [ LParen,
+        RParen,
+        Plus,
+        Minus,
+        Slash,
+        Asterisk,
+        LEq,
+        L,
+        GEq,
+        G,
+        Eq,
+        Neq,
+        Assign,
+        Semicolon,
+        Return
       ]
+  where
+    matchShow = MP.string . T.pack . show
 
 ident :: Parser Token
 ident =
