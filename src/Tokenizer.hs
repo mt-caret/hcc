@@ -30,6 +30,10 @@ data TokenType
   = Number Int
   | Ident String
   | Return
+  | If
+  | Else
+  | While
+  | For
   | LParen
   | RParen
   | Plus
@@ -52,6 +56,10 @@ instance Show TokenType where
   show (Number n) = show n
   show (Ident ch) = show ch
   show Return = "return"
+  show If = "if"
+  show Else = "else"
+  show While = "while"
+  show For = "for"
   show LParen = "("
   show RParen = ")"
   show Plus = "+"
@@ -115,6 +123,10 @@ ident =
       return $
         case str of
           "return" -> Return
+          "if" -> If
+          "else" -> Else
+          "while" -> While
+          "for" -> For
           _ -> Ident str
 
 nonDigitChar :: Parser Char

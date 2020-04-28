@@ -1,10 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 
+import qualified Ast
 import qualified CodeGen
 import Control.Monad.Except
 import Control.Monad.Managed
 import Data.Bifunctor
 import qualified Data.Text as T
+import qualified Evaluator
 import qualified Parser
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -30,7 +32,7 @@ exitCodeToInt :: ExitCode -> Int
 exitCodeToInt ExitSuccess = 0
 exitCodeToInt (ExitFailure n) = n
 
-parse :: Parser.AstSym ast => T.Text -> Either String [ast]
+parse :: Ast.AstSym ast => T.Text -> Either String [ast]
 parse cCode = do
   tokens <- first MP.errorBundlePretty $ Tokenizer.run "args" cCode
   first MP.errorBundlePretty $ Parser.run "tokens" tokens
@@ -40,7 +42,7 @@ toShellLine = fmap select . traverse (textToLine . T.pack)
 
 compareOutput :: Text -> IO (Either String (Maybe Int, Maybe Int))
 compareOutput cCode = runExceptT $ do
-  evalResult <- liftEither $ Parser.evaluate =<< parseResult
+  evalResult <- liftEither $ Evaluator.run =<< parseResult
   asm <- liftEither $ CodeGen.generateCode =<< parseResult
   binPath <-
     runAssembler
@@ -52,28 +54,33 @@ compareOutput cCode = runExceptT $ do
   runResult <- return . exitCodeToInt <$> runBinary binPath
   return (evalResult, runResult)
   where
-    parseResult :: Parser.AstSym ast => Either String [ast]
+    parseResult :: Ast.AstSym ast => Either String [ast]
     parseResult = parse cCode
 
-runCompare :: String -> IO ()
-runCompare cCode = do
+runCompareEq :: String -> Int -> IO ()
+runCompareEq cCode val = do
   compareResult <- compareOutput $ T.pack cCode
   case compareResult of
     Left errMsg -> assertFailure errMsg
-    Right (evalResult, runResult) -> evalResult @?= runResult
+    Right (evalResult, runResult) -> do
+      evalResult @?= Just val
+      evalResult @?= runResult
 
-compareTest :: TestName -> TestTree
-compareTest cCode = testCase cCode $ runCompare cCode
+compareTest :: TestName -> Int -> TestTree
+compareTest cCode val = testCase cCode $ runCompareEq cCode val
 
 unitTests :: TestTree
 unitTests =
   testGroup
     "Unit tests"
-    [ compareTest "return 1;",
-      compareTest "return 7 - 8 + 3;",
-      compareTest "a = 1; b = 2; return (a == b) + a;",
-      compareTest "returnx = 4; return returnx;"
-    ]
+    $ fmap
+      (uncurry compareTest)
+      [ ("return 1;", 1),
+        ("return 7 - 8 + 3;", 2),
+        ("a = 1; b = 2; return (a == b) + a;", 1),
+        ("returnx = 4; return returnx;", 4),
+        ("ifx = 4; return ifx;", 4)
+      ]
 
 main :: IO ()
 main = defaultMain unitTests

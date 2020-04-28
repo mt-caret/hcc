@@ -6,6 +6,7 @@ import qualified CodeGen
 import Control.Monad
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
+import qualified Evaluator
 import qualified Parser
 import System.Environment
 import System.IO
@@ -38,7 +39,7 @@ runCompiler = do
       Left err -> ePutStrLn $ MP.errorBundlePretty err
       Right tokens -> case Parser.run "tokens" tokens of
         Left err -> ePutStrLn $ MP.errorBundlePretty err
-        Right program -> print $ Parser.evaluate program
+        Right program -> print $ Evaluator.run program
     _ -> ePutStrLn "invalid arguments"
 
 main :: IO ()

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c3d03c3de5ca6113563e0e36086ea0d6f3c5655772a184d947cd5644d5c13808
+-- hash: 5b627aea8713170a7000b9de3efd359be103790594e5bc9a4979a217257a6c79
 
 name:           hcc
 version:        0.1.0.0
@@ -27,7 +27,9 @@ source-repository head
 
 library
   exposed-modules:
+      Ast
       CodeGen
+      Evaluator
       Parser
       Tokenizer
   other-modules:
