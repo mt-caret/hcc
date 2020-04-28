@@ -4,23 +4,26 @@
 
 module Parser where
 
+import Control.Applicative
+import Control.Monad.State.Strict
 import Data.List
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as NE
+import qualified Data.Map as M
 import Data.Proxy
 import qualified Data.Set as S
 import qualified Data.Void as V
-import Text.Megaparsec ((<|>))
 import qualified Text.Megaparsec as MP
 import qualified Text.Megaparsec.Error as MPE
 import qualified Tokenizer
 import Prelude hiding (div)
+import qualified Prelude
 
 type Parser = MP.Parsec V.Void CTokens
 
 data Ast
   = Ident String
-  | Assign Ast Ast
+  | Assign String Ast
   | Return Ast
   | Add Ast Ast
   | Sub Ast Ast
@@ -35,6 +38,85 @@ data Ast
   | Neg Ast
   | Num Int
   deriving (Show, Eq)
+
+class AstSym a where
+  identS :: String -> a
+  assignS :: String -> a -> a
+  returnS :: a -> a
+  addS :: a -> a -> a
+  subS :: a -> a -> a
+  mulS :: a -> a -> a
+  divS :: a -> a -> a
+  lS :: a -> a -> a
+  leqS :: a -> a -> a
+  gS :: a -> a -> a
+  geqS :: a -> a -> a
+  eqS :: a -> a -> a
+  neqS :: a -> a -> a
+  negS :: a -> a
+  numS :: Int -> a
+
+instance AstSym Ast where
+  identS = Ident
+  assignS = Assign
+  returnS = Return
+  addS = Add
+  subS = Sub
+  mulS = Mul
+  divS = Div
+  lS = L
+  leqS = LEq
+  gS = G
+  geqS = GEq
+  eqS = Eq
+  neqS = Neq
+  negS = Neg
+  numS = Num
+
+data Scope = Scope {variables :: M.Map String Int, returnedValue :: Maybe Int}
+
+type AstEval a = StateT Scope (Either String) a
+
+boolToInt :: Bool -> Int
+boolToInt True = 1
+boolToInt False = 0
+
+liftLeft :: String -> AstEval a
+liftLeft = StateT . const . Left
+
+evaluate :: [AstEval Int] -> Either String (Maybe Int)
+evaluate ast = returnedValue <$> execStateT (sequenceA ast) (Scope M.empty Nothing)
+
+instance AstSym (AstEval Int) where
+  identS name = do
+    vars <- variables <$> get
+    case M.lookup name vars of
+      Just val -> return val
+      Nothing -> liftLeft $ "variable " ++ show name ++ " not found"
+  assignS name a = do
+    aVal <- a
+    modify (\(Scope vars ret) -> Scope (M.insert name aVal vars) ret)
+    return aVal
+  returnS a = do
+    aVal <- a
+    modify
+      ( \case
+          Scope vars Nothing -> Scope vars (Just aVal)
+          x -> x
+      )
+    return aVal
+  addS a b = (+) <$> a <*> b
+  subS a b = (-) <$> a <*> b
+  mulS a b = (*) <$> a <*> b
+  divS a b = Prelude.div <$> a <*> b
+  lS a b = fmap boolToInt $ (<) <$> a <*> b
+  leqS a b = fmap boolToInt $ (<=) <$> a <*> b
+  gS a b = fmap boolToInt $ (>) <$> a <*> b
+  geqS a b = fmap boolToInt $ (>=) <$> a <*> b
+  eqS a b = fmap boolToInt $ (==) <$> a <*> b
+  neqS a b = fmap boolToInt $ (/=) <$> a <*> b
+  negS = fmap negate
+  numS = return
 
 newtype CTokens = CTokens [Tokenizer.Token]
 
@@ -79,15 +161,15 @@ instance MP.Stream CTokens where
       newSourcePos =
         maybe (MP.pstateSourcePos ps) Tokenizer.getSourcePosOfToken currentToken
 
-ident :: Parser Ast
-ident = Ident <$> MP.token test expected
+ident :: Parser String
+ident = MP.token test expected
   where
     test (Tokenizer.Token (Tokenizer.Ident str) _) = Just str
     test _ = Nothing
-    expected = S.singleton . MPE.Label . NE.fromList $ "variable name"
+    expected = S.singleton . MPE.Label . NE.fromList $ "identifier"
 
-number :: Parser Ast
-number = Num <$> MP.token test expected
+number :: AstSym ast => Parser ast
+number = numS <$> MP.token test expected
   where
     test (Tokenizer.Token (Tokenizer.Number n) _) = Just n
     test _ = Nothing
@@ -136,62 +218,61 @@ binOpMany base op = foldl (\x f -> f x) <$> base <*> MP.many op
 applyR :: (a -> a -> a) -> Parser b -> Parser a -> Parser (a -> a)
 applyR op opParser base = flip op <$> (opParser *> base)
 
-program :: Parser [Ast]
+program :: AstSym ast => Parser [ast]
 program = MP.some stmt <* MP.eof
 
-stmt :: Parser Ast
-stmt = expr <* semicolon <|> (Return <$> MP.between return_ semicolon expr)
+stmt :: AstSym ast => Parser ast
+stmt = expr <* semicolon <|> (returnS <$> MP.between return_ semicolon expr)
 
-expr :: Parser Ast
+expr :: AstSym ast => Parser ast
 expr = assign
 
-assign :: Parser Ast
-assign = do
-  lv <- equality
-  (Assign lv <$> (assign_ *> assign)) <|> pure lv
+assign :: AstSym ast => Parser ast
+assign = MP.try (assignS <$> ident <*> (assign_ *> assign)) <|> equality
 
-equality :: Parser Ast
+equality :: AstSym ast => Parser ast
 equality = binOpMany base op
   where
     base = relational
-    eq_ = applyR Eq eq base
-    neq_ = applyR Neq neq base
+    eq_ = applyR eqS eq base
+    neq_ = applyR neqS neq base
     op = eq_ <|> neq_
 
-relational :: Parser Ast
+relational :: AstSym ast => Parser ast
 relational = binOpMany base op
   where
     base = add
-    l_ = applyR L l base
-    leq_ = applyR LEq leq base
-    g_ = applyR G g base
-    geq_ = applyR GEq geq base
+    l_ = applyR lS l base
+    leq_ = applyR leqS leq base
+    g_ = applyR gS g base
+    geq_ = applyR geqS geq base
     op = l_ <|> leq_ <|> g_ <|> geq_
 
-add :: Parser Ast
+add :: AstSym ast => Parser ast
 add = binOpMany base op
   where
     base = mul
-    add_ = applyR Add plus base
-    sub = applyR Sub minus base
+    add_ = applyR addS plus base
+    sub = applyR subS minus base
     op = add_ <|> sub
 
-mul :: Parser Ast
+mul :: AstSym ast => Parser ast
 mul = binOpMany base op
   where
     base = unary
-    mul_ = applyR Mul asterisk base
-    div = applyR Div slash base
+    mul_ = applyR mulS asterisk base
+    div = applyR divS slash base
     op = mul_ <|> div
 
-unary :: Parser Ast
-unary = op <*> primary where op = (id <$ plus) <|> (Neg <$ minus) <|> pure id
+unary :: AstSym ast => Parser ast
+unary = op <*> primary where op = (id <$ plus) <|> (negS <$ minus) <|> pure id
 
-primary :: Parser Ast
-primary = number <|> ident <|> MP.between lparen rparen expr
+primary :: AstSym ast => Parser ast
+primary = number <|> identS <$> ident <|> MP.between lparen rparen expr
 
 run ::
+  AstSym ast =>
   String ->
   [Tokenizer.Token] ->
-  Either (MP.ParseErrorBundle CTokens V.Void) [Ast]
+  Either (MP.ParseErrorBundle CTokens V.Void) [ast]
 run name tokens = MP.parse program name (CTokens tokens)

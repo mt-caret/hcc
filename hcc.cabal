@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 4dff12e4e96beeda71bece76139777e8a0fb12b9675d8852dd2d52ea2bd257b1
+-- hash: c3d03c3de5ca6113563e0e36086ea0d6f3c5655772a184d947cd5644d5c13808
 
 name:           hcc
 version:        0.1.0.0
@@ -71,7 +71,11 @@ test-suite hcc-test
       base >=4.7 && <5
     , containers
     , hcc
+    , managed
     , megaparsec >=8.0 && <9
     , mtl
+    , tasty
+    , tasty-hunit
     , text
+    , turtle
   default-language: Haskell2010

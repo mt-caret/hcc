@@ -37,7 +37,7 @@ getAddress name = do
 
 genCode :: Parser.Ast -> CodeGen [String]
 genCode (Parser.Num n) = return [printf "  push %d" n]
-genCode (Parser.Assign (Parser.Ident ident) rval) = do
+genCode (Parser.Assign ident rval) = do
   doesVarExist <- M.member ident . variables <$> get
   unless doesVarExist $ createNewVar ident
   addrCode <- getAddress ident
@@ -47,10 +47,6 @@ genCode (Parser.Assign (Parser.Ident ident) rval) = do
       ++ rvalCode
       ++ popStack
       ++ ["  mov [rax], rdi", "  push rdi"]
-genCode (Parser.Assign l _) =
-  genCodeError $
-    "expected left-hand in assignment expression to be an identifier but found: "
-      ++ show l
 genCode (Parser.Return a) = do
   aCode <- genCode a
   return $ aCode ++ ["  pop rax", "  mov rsp, rbp", "  pop rbp", "  ret"]

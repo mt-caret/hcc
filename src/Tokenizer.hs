@@ -101,8 +101,7 @@ reserved =
         Eq,
         Neq,
         Assign,
-        Semicolon,
-        Return
+        Semicolon
       ]
   where
     matchShow = MP.string . T.pack . show
@@ -111,7 +110,12 @@ ident :: Parser Token
 ident =
   Token <$> i <*> getLineStatep <?> "variable name"
   where
-    i = Ident <$> MP.some (MP.satisfy C.isAsciiLower)
+    i = do
+      str <- MP.some (MP.satisfy C.isAsciiLower)
+      return $
+        case str of
+          "return" -> Return
+          _ -> Ident str
 
 nonDigitChar :: Parser Char
 nonDigitChar =

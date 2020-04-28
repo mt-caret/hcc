@@ -57,3 +57,7 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - hcc
+    - tasty
+    - tasty-hunit
+    - turtle
+    - managed
