@@ -3,6 +3,7 @@
 module Tokenizer
   ( run,
     Token (..),
+    TokenType (..),
     getLineOfToken,
     getSourcePosOfToken,
   )
@@ -25,69 +26,52 @@ data LineState
       }
   deriving (Eq, Ord)
 
-data Token
-  = Number Int !LineState
-  | Ident String !LineState
-  | Return !LineState
-  | LParen !LineState
-  | RParen !LineState
-  | Plus !LineState
-  | Minus !LineState
-  | Slash !LineState
-  | Asterisk !LineState
-  | L !LineState
-  | LEq !LineState
-  | G !LineState
-  | GEq !LineState
-  | Eq !LineState
-  | Neq !LineState
-  | Assign !LineState
-  | Semicolon !LineState
+data TokenType
+  = Number Int
+  | Ident String
+  | Return
+  | LParen
+  | RParen
+  | Plus
+  | Minus
+  | Slash
+  | Asterisk
+  | L
+  | LEq
+  | G
+  | GEq
+  | Eq
+  | Neq
+  | Assign
+  | Semicolon
   deriving (Eq, Ord)
 
-instance Show Token where
-  show (Number n _) = show n
-  show (Ident ch _) = show ch
-  show (Return _) = "return"
-  show (LParen _) = "("
-  show (RParen _) = ")"
-  show (Plus _) = "+"
-  show (Minus _) = "-"
-  show (Slash _) = "/"
-  show (Asterisk _) = "*"
-  show (L _) = "<"
-  show (LEq _) = "<="
-  show (G _) = ">"
-  show (GEq _) = ">="
-  show (Eq _) = "=="
-  show (Neq _) = "!="
-  show (Assign _) = "="
-  show (Semicolon _) = ";"
+data Token = Token {tokenType :: TokenType, lineState :: !LineState} deriving (Eq, Ord)
 
-getLineState :: Token -> LineState
-getLineState (Number _ ls) = ls
-getLineState (Ident _ ls) = ls
-getLineState (Return ls) = ls
-getLineState (LParen ls) = ls
-getLineState (RParen ls) = ls
-getLineState (Plus ls) = ls
-getLineState (Minus ls) = ls
-getLineState (Slash ls) = ls
-getLineState (Asterisk ls) = ls
-getLineState (L ls) = ls
-getLineState (LEq ls) = ls
-getLineState (G ls) = ls
-getLineState (GEq ls) = ls
-getLineState (Eq ls) = ls
-getLineState (Neq ls) = ls
-getLineState (Assign ls) = ls
-getLineState (Semicolon ls) = ls
+instance Show Token where
+  show (Token (Number n) _) = show n
+  show (Token (Ident ch) _) = show ch
+  show (Token Return _) = "return"
+  show (Token LParen _) = "("
+  show (Token RParen _) = ")"
+  show (Token Plus _) = "+"
+  show (Token Minus _) = "-"
+  show (Token Slash _) = "/"
+  show (Token Asterisk _) = "*"
+  show (Token L _) = "<"
+  show (Token LEq _) = "<_)="
+  show (Token G _) = ">"
+  show (Token GEq _) = ">_)="
+  show (Token Eq _) = "_)=_)="
+  show (Token Neq _) = "!_)="
+  show (Token Assign _) = "_)="
+  show (Token Semicolon _) = ";"
 
 getLineOfToken :: Token -> String
-getLineOfToken = T.unpack . line . getLineState
+getLineOfToken = T.unpack . line . lineState
 
 getSourcePosOfToken :: Token -> MP.SourcePos
-getSourcePosOfToken = sourcePos . getLineState
+getSourcePosOfToken = sourcePos . lineState
 
 getLineStatep :: Parser LineState
 getLineStatep = do
@@ -100,7 +84,7 @@ whitespace = ($> ()) . MP.many . MP.oneOf $ [' ', '\t', '\n']
 reserved :: Parser Token
 reserved =
   foldr1 (<|>)
-    . fmap (\(t, s) -> (t <$ MP.string s) <*> getLineStatep)
+    . fmap (\(t, s) -> (Token t <$ MP.string s) <*> getLineStatep)
     $ [ (LParen, "("),
         (RParen, ")"),
         (Plus, "+"),
@@ -120,20 +104,20 @@ reserved =
 
 ident :: Parser Token
 ident =
-  Ident
-    <$> MP.some (MP.satisfy C.isAsciiLower)
-    <*> getLineStatep
-    <?> "variable name"
+  Token <$> i <*> getLineStatep <?> "variable name"
+  where
+    i = Ident <$> MP.some (MP.satisfy C.isAsciiLower)
 
 nonDigitChar :: Parser Char
 nonDigitChar =
   MP.satisfy (\ch -> ch /= '0' && C.isDigit ch) <?> "non-zero digit"
 
 number :: Parser Token
-number = Number . read <$> numberString <*> getLineStatep
+number = Token <$> n <*> getLineStatep
   where
     numberString =
       ((:) <$> nonDigitChar <*> MP.many MP.digitChar) <|> (pure <$> MP.digitChar)
+    n = Number . read <$> numberString
 
 token :: Parser Token
 token = reserved <|> number <|> ident

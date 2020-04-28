@@ -82,151 +82,48 @@ instance MP.Stream CTokens where
 ident :: Parser Ast
 ident = Ident <$> MP.token test expected
   where
-    test (Tokenizer.Ident str _) = Just str
+    test (Tokenizer.Token (Tokenizer.Ident str) _) = Just str
     test _ = Nothing
     expected = S.singleton . MPE.Label . NE.fromList $ "variable name"
 
 number :: Parser Ast
 number = Num <$> MP.token test expected
   where
-    test (Tokenizer.Number n _) = Just n
+    test (Tokenizer.Token (Tokenizer.Number n) _) = Just n
     test _ = Nothing
     expected = S.singleton . MPE.Label . NE.fromList $ "number"
 
-return_ :: Parser ()
-return_ =
-  ()
-    <$ MP.satisfy
-      ( \case
-          Tokenizer.Return _ -> True
-          _ -> False
-      )
-
-lparen :: Parser ()
-lparen =
-  ()
-    <$ MP.satisfy
-      ( \case
-          Tokenizer.LParen _ -> True
-          _ -> False
-      )
-
-rparen :: Parser ()
-rparen =
-  ()
-    <$ MP.satisfy
-      ( \case
-          Tokenizer.RParen _ -> True
-          _ -> False
-      )
-
-plus :: Parser ()
-plus =
-  ()
-    <$ MP.satisfy
-      ( \case
-          Tokenizer.Plus _ -> True
-          _ -> False
-      )
-
-minus :: Parser ()
-minus =
-  ()
-    <$ MP.satisfy
-      ( \case
-          Tokenizer.Minus _ -> True
-          _ -> False
-      )
-
-slash :: Parser ()
-slash =
-  ()
-    <$ MP.satisfy
-      ( \case
-          Tokenizer.Slash _ -> True
-          _ -> False
-      )
-
-asterisk :: Parser ()
-asterisk =
-  ()
-    <$ MP.satisfy
-      ( \case
-          Tokenizer.Asterisk _ -> True
-          _ -> False
-      )
-
-l :: Parser ()
-l =
-  ()
-    <$ MP.satisfy
-      ( \case
-          Tokenizer.L _ -> True
-          _ -> False
-      )
-
-leq :: Parser ()
-leq =
-  ()
-    <$ MP.satisfy
-      ( \case
-          Tokenizer.LEq _ -> True
-          _ -> False
-      )
-
-g :: Parser ()
-g =
-  ()
-    <$ MP.satisfy
-      ( \case
-          Tokenizer.G _ -> True
-          _ -> False
-      )
-
-geq :: Parser ()
-geq =
-  ()
-    <$ MP.satisfy
-      ( \case
-          Tokenizer.GEq _ -> True
-          _ -> False
-      )
-
-eq :: Parser ()
-eq =
-  ()
-    <$ MP.satisfy
-      ( \case
-          Tokenizer.Eq _ -> True
-          _ -> False
-      )
-
-neq :: Parser ()
-neq =
-  ()
-    <$ MP.satisfy
-      ( \case
-          Tokenizer.Neq _ -> True
-          _ -> False
-      )
-
-assign_ :: Parser ()
-assign_ =
-  ()
-    <$ MP.satisfy
-      ( \case
-          Tokenizer.Assign _ -> True
-          _ -> False
-      )
-
-semicolon :: Parser ()
-semicolon =
-  ()
-    <$ MP.satisfy
-      ( \case
-          Tokenizer.Semicolon _ -> True
-          _ -> False
-      )
+return_,
+  lparen,
+  rparen,
+  plus,
+  minus,
+  slash,
+  asterisk,
+  l,
+  leq,
+  g,
+  geq,
+  eq,
+  neq,
+  assign_,
+  semicolon ::
+    Parser ()
+return_ = () <$ MP.satisfy ((==) Tokenizer.Return . Tokenizer.tokenType)
+lparen = () <$ MP.satisfy ((==) Tokenizer.LParen . Tokenizer.tokenType)
+rparen = () <$ MP.satisfy ((==) Tokenizer.RParen . Tokenizer.tokenType)
+plus = () <$ MP.satisfy ((==) Tokenizer.Plus . Tokenizer.tokenType)
+minus = () <$ MP.satisfy ((==) Tokenizer.Minus . Tokenizer.tokenType)
+slash = () <$ MP.satisfy ((==) Tokenizer.Slash . Tokenizer.tokenType)
+asterisk = () <$ MP.satisfy ((==) Tokenizer.Asterisk . Tokenizer.tokenType)
+l = () <$ MP.satisfy ((==) Tokenizer.L . Tokenizer.tokenType)
+leq = () <$ MP.satisfy ((==) Tokenizer.LEq . Tokenizer.tokenType)
+g = () <$ MP.satisfy ((==) Tokenizer.G . Tokenizer.tokenType)
+geq = () <$ MP.satisfy ((==) Tokenizer.GEq . Tokenizer.tokenType)
+eq = () <$ MP.satisfy ((==) Tokenizer.Eq . Tokenizer.tokenType)
+neq = () <$ MP.satisfy ((==) Tokenizer.Neq . Tokenizer.tokenType)
+assign_ = () <$ MP.satisfy ((==) Tokenizer.Assign . Tokenizer.tokenType)
+semicolon = () <$ MP.satisfy ((==) Tokenizer.Semicolon . Tokenizer.tokenType)
 
 -- left-associative binary op which parses the following: base (`op` base)*
 binOpMany :: Parser a -> Parser (a -> a) -> Parser a
