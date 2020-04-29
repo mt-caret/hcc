@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 5b627aea8713170a7000b9de3efd359be103790594e5bc9a4979a217257a6c79
+-- hash: 3691bcd2cbcbf0fbe66aa8aff4a606a235088370a8df36d62e280247a1a1cf7c
 
 name:           hcc
 version:        0.1.0.0
@@ -40,6 +40,7 @@ library
   build-depends:
       base >=4.7 && <5
     , containers
+    , lens
     , megaparsec >=8.0 && <9
     , mtl
     , text
@@ -56,6 +57,7 @@ executable hcc-exe
       base >=4.7 && <5
     , containers
     , hcc
+    , lens
     , megaparsec >=8.0 && <9
     , mtl
     , text
@@ -73,6 +75,7 @@ test-suite hcc-test
       base >=4.7 && <5
     , containers
     , hcc
+    , lens
     , managed
     , megaparsec >=8.0 && <9
     , mtl

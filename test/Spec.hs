@@ -87,9 +87,7 @@ unitTests =
         ("if (1) return 2; else return 1;", 2),
         ("if (0) return 2; else return 1;", 1),
         ("a = 10; while (a) a = a - 1; return a;", 0),
-        ("a = 0; for (i = 0; i < 0; i = i + 1) a = a + 2; return a;", 0),
-        ("a = 0; for (i = 0; i < 2; i = i + 1) a = a + 2; return a;", 4),
-        ("a = 0; for (i = 0; i < 2; i = i + 1) a = a + 4; return a;", 8) -- this makes no sense!
+        ("a = 0; for (i = 0; i < 10; i = i + 1) a = a + 2; return a;", 20)
       ]
 
 main :: IO ()

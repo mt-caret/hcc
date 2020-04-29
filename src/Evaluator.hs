@@ -1,13 +1,17 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Evaluator where
 
 import qualified Ast
+import Control.Lens
 import Control.Monad.State.Strict
 import qualified Data.Map as M
 
-data Scope = Scope {variables :: M.Map String Int, returnedValue :: Maybe Int}
+data Scope = Scope {_variables :: M.Map String Int, _returnedValue :: Maybe Int}
+
+$(makeLenses ''Scope)
 
 type AstEval a = StateT Scope (Either String) a
 
@@ -19,25 +23,24 @@ liftLeft :: String -> AstEval a
 liftLeft = StateT . const . Left
 
 run :: [AstEval Int] -> Either String (Maybe Int)
-run ast = returnedValue <$> execStateT (sequenceA ast) (Scope M.empty Nothing)
+run ast = view returnedValue <$> execStateT (sequenceA ast) (Scope M.empty Nothing)
 
 instance Ast.AstSym (AstEval Int) where
   identS name = do
-    vars <- variables <$> get
+    vars <- view variables <$> get
     case M.lookup name vars of
       Just val -> return val
       Nothing -> liftLeft $ "variable " ++ show name ++ " not found"
   assignS name a = do
     aVal <- a
-    modify (\(Scope vars ret) -> Scope (M.insert name aVal vars) ret)
+    modify . over variables $ M.insert name aVal
     return aVal
   returnS a = do
     aVal <- a
-    modify
-      ( \case
-          Scope vars Nothing -> Scope vars (Just aVal)
-          x -> x
-      )
+    modify . over returnedValue $
+      \case
+        Nothing -> Just aVal
+        x -> x
     return aVal
   ifS p a = do
     pVal <- p

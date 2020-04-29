@@ -1,6 +1,9 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 module CodeGen where
 
 import qualified Ast
+import Control.Lens
 import Control.Monad.State.Strict
 import qualified Data.Map as M
 import Text.Printf
@@ -17,10 +20,12 @@ leThenPush = ["  setle al", "  movzb rax, al"] ++ pushStack
 
 data Scope
   = Scope
-      { variables :: M.Map String Int,
-        nextOffset :: Int,
-        counter :: Int
+      { _variables :: M.Map String Int,
+        _nextOffset :: Int,
+        _counter :: Int
       }
+
+$(makeLenses ''Scope)
 
 type CodeGen a = StateT Scope (Either String) a
 
@@ -29,12 +34,12 @@ initScope = Scope M.empty 0 0
 
 createNewVar :: String -> CodeGen ()
 createNewVar name =
-  modify (\(Scope v no c) -> Scope (M.insert name no v) (no + 8) c)
+  modify $ \(Scope v no c) -> Scope (M.insert name no v) (no + 8) c
 
 createLabel :: String -> CodeGen String
 createLabel labelName = do
-  count <- printf "%05d" . counter <$> get
-  modify (\(Scope v no c) -> Scope v no (c + 1))
+  count <- printf "%05d" . view counter <$> get
+  modify $ over counter (+ 1)
   return $ ".L__" ++ labelName ++ "__" ++ count
 
 genCodeError :: String -> CodeGen a
@@ -42,7 +47,7 @@ genCodeError = StateT . const . Left
 
 getAddress :: String -> CodeGen [String]
 getAddress name = do
-  vars <- variables <$> get
+  vars <- view variables <$> get
   case M.lookup name vars of
     Nothing -> genCodeError $ "variable " ++ name ++ " not found"
     Just offset ->
@@ -55,7 +60,7 @@ surround name code =
 genCode :: Ast.Ast -> CodeGen [String]
 genCode (Ast.Num n) = return [printf "  push %d" n]
 genCode (Ast.Assign ident rval) = do
-  doesVarExist <- M.member ident . variables <$> get
+  doesVarExist <- M.member ident . view variables <$> get
   unless doesVarExist $ createNewVar ident
   addrCode <- getAddress ident
   rvalCode <- genCode rval
@@ -110,7 +115,7 @@ genCode (Ast.For start p end a) = do
       ++ ["  pop rax", "  cmp rax, 0", "je  " ++ endLabel]
       ++ surround "aCode" aCode
       ++ surround "endCode" endCode
-      ++ ["  je " ++ beginLabel, endLabel ++ ":"]
+      ++ ["  jmp " ++ beginLabel, endLabel ++ ":"]
 genCode (Ast.Ident ident) = do
   addrCode <- getAddress ident
   return $ addrCode ++ ["  pop rax", "  mov rax, [rax]"] ++ pushStack
@@ -157,7 +162,7 @@ generateCode program = do
     codePrelude
       ++ [ "  push rbp",
            "  mov rbp, rsp",
-           "  sub rsp, " ++ show (nextOffset scope),
+           "  sub rsp, " ++ show (scope ^. nextOffset),
            "# end of prelude"
          ]
       ++ concatMap (\c -> c ++ ["  pop rax"]) code
