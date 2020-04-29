@@ -2,6 +2,7 @@ module Ast where
 
 data Ast
   = Ident String
+  | Block [Ast]
   | Assign String Ast
   | Return Ast
   | If Ast Ast
@@ -24,6 +25,7 @@ data Ast
 
 class AstSym a where
   identS :: String -> a
+  blockS :: [a] -> a
   assignS :: String -> a -> a
   returnS :: a -> a
   ifS :: a -> a -> a
@@ -45,6 +47,7 @@ class AstSym a where
 
 instance AstSym Ast where
   identS = Ident
+  blockS = Block
   assignS = Assign
   returnS = Return
   ifS = If

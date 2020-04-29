@@ -31,6 +31,7 @@ instance Ast.AstSym (AstEval Int) where
     case M.lookup name vars of
       Just val -> return val
       Nothing -> liftLeft $ "variable " ++ show name ++ " not found"
+  blockS asts = 0 <$ sequence_ asts
   assignS name a = do
     aVal <- a
     modify . over variables $ M.insert name aVal

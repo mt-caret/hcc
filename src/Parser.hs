@@ -82,6 +82,8 @@ return_,
   for_,
   lparen,
   rparen,
+  lbrack,
+  rbrack,
   plus,
   minus,
   slash,
@@ -102,6 +104,8 @@ while_ = () <$ MP.satisfy ((==) Tokenizer.While . Tokenizer.tokenType)
 for_ = () <$ MP.satisfy ((==) Tokenizer.For . Tokenizer.tokenType)
 lparen = () <$ MP.satisfy ((==) Tokenizer.LParen . Tokenizer.tokenType)
 rparen = () <$ MP.satisfy ((==) Tokenizer.RParen . Tokenizer.tokenType)
+lbrack = () <$ MP.satisfy ((==) Tokenizer.LBrack . Tokenizer.tokenType)
+rbrack = () <$ MP.satisfy ((==) Tokenizer.RBrack . Tokenizer.tokenType)
 plus = () <$ MP.satisfy ((==) Tokenizer.Plus . Tokenizer.tokenType)
 minus = () <$ MP.satisfy ((==) Tokenizer.Minus . Tokenizer.tokenType)
 slash = () <$ MP.satisfy ((==) Tokenizer.Slash . Tokenizer.tokenType)
@@ -133,9 +137,10 @@ parens :: Parser a -> Parser a
 parens = MP.between lparen rparen
 
 stmt :: Ast.AstSym ast => Parser ast
-stmt = singleStmt <|> ifStmt <|> whileStmt <|> forStmt <|> returnStmt
+stmt = singleStmt <|> blockStmt <|> ifStmt <|> whileStmt <|> forStmt <|> returnStmt
   where
     singleStmt = expr <* semicolon
+    blockStmt = Ast.blockS <$> MP.between lbrack rbrack (MP.many stmt)
     returnStmt = Ast.returnS <$> MP.between return_ semicolon expr
     ifStmt = do
       ifExpr <- if_ *> parens expr

@@ -69,6 +69,7 @@ genCode (Ast.Assign ident rval) = do
       ++ rvalCode
       ++ popStack
       ++ ["  mov [rax], rdi", "  push rdi"]
+genCode (Ast.Block xs) = concat <$> traverse genCode xs
 genCode (Ast.Return a) = do
   aCode <- genCode a
   return $ aCode ++ ["  pop rax", "  mov rsp, rbp", "  pop rbp", "  ret"]

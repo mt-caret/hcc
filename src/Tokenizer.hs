@@ -36,6 +36,8 @@ data TokenType
   | For
   | LParen
   | RParen
+  | LBrack
+  | RBrack
   | Plus
   | Minus
   | Slash
@@ -62,6 +64,8 @@ instance Show TokenType where
   show For = "for"
   show LParen = "("
   show RParen = ")"
+  show LBrack = "{"
+  show RBrack = "}"
   show Plus = "+"
   show Minus = "-"
   show Slash = "/"
@@ -98,6 +102,8 @@ reserved =
     . fmap (\t -> (Token t <$ matchShow t) <*> getLineStatep)
     $ [ LParen,
         RParen,
+        LBrack,
+        RBrack,
         Plus,
         Minus,
         Slash,
