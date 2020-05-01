@@ -8,8 +8,16 @@ import qualified Ast
 import Control.Lens
 import Control.Monad.State.Strict
 import qualified Data.Map as M
+import qualified Data.Text as T
+import Text.Printf
 
-data Scope = Scope {_variables :: M.Map String Int, _returnedValue :: Maybe Int}
+data Scope
+  = Scope
+      { _functions :: M.Map String ([Int] -> StateT Scope (Either String) Int),
+        _variables :: M.Map String Int,
+        _returnedValue :: Maybe Int,
+        _stdout :: [String]
+      }
 
 $(makeLenses ''Scope)
 
@@ -22,8 +30,34 @@ boolToInt False = 0
 liftLeft :: String -> AstEval a
 liftLeft = StateT . const . Left
 
-run :: [AstEval Int] -> Either String (Maybe Int)
-run ast = view returnedValue <$> execStateT (sequenceA ast) (Scope M.empty Nothing)
+printToStdout :: String -> AstEval ()
+printToStdout str =
+  modify . over stdout $ (:) str
+
+functions_ :: M.Map String ([Int] -> AstEval Int)
+functions_ =
+  M.fromList
+    [ ( "args0",
+        \case
+          [] -> 0 <$ printToStdout (printf "OK")
+          xs -> liftLeft $ "expected 0 arguments but found: " ++ show (length xs)
+      ),
+      ( "args1",
+        \case
+          [x] -> 0 <$ printToStdout (printf "OK, %d" x)
+          xs -> liftLeft $ "expected 1 argument but found: " ++ show (length xs)
+      ),
+      ( "args2",
+        \case
+          [x, y] -> 0 <$ printToStdout (printf "OK, %d, %d" x y)
+          xs -> liftLeft $ "expected 1 argument but found: " ++ show (length xs)
+      )
+    ]
+
+run :: [AstEval Int] -> Either String (Maybe Int, T.Text)
+run ast = do
+  scope <- execStateT (sequenceA ast) (Scope functions_ M.empty Nothing [])
+  return (scope ^. returnedValue, T.pack . unlines . reverse $ scope ^. stdout)
 
 instance Ast.AstSym (AstEval Int) where
   identS name = do
@@ -43,6 +77,12 @@ instance Ast.AstSym (AstEval Int) where
         Nothing -> Just aVal
         x -> x
     return aVal
+  callS name args = do
+    funcs <- view functions <$> get
+    argVals <- sequence args
+    case M.lookup name funcs of
+      Just f -> f argVals
+      Nothing -> liftLeft $ "function " ++ name ++ " not found"
   ifS p a = do
     pVal <- p
     if pVal /= 0 then a else return 0

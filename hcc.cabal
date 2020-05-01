@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 3691bcd2cbcbf0fbe66aa8aff4a606a235088370a8df36d62e280247a1a1cf7c
+-- hash: 6b5135e5625d2e5cb24353f7cc4455c3ceeb53b9d9aca24ceaa892e959939aa4
 
 name:           hcc
 version:        0.1.0.0
@@ -79,6 +79,7 @@ test-suite hcc-test
     , managed
     , megaparsec >=8.0 && <9
     , mtl
+    , neat-interpolation
     , tasty
     , tasty-hunit
     , text

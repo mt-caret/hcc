@@ -128,15 +128,16 @@ ident =
   Token <$> i <*> getLineStatep <?> "variable name"
   where
     i = do
-      str <- MP.some (MP.satisfy C.isAsciiLower)
+      firstChar <- MP.satisfy (\ch -> C.isAsciiLower ch || C.isAsciiUpper ch || ch == '_')
+      str <- MP.many (MP.satisfy (\ch -> C.isAlphaNum ch || ch == '_'))
       return $
-        case str of
+        case firstChar : str of
           "return" -> Return
           "if" -> If
           "else" -> Else
           "while" -> While
           "for" -> For
-          _ -> Ident str
+          s -> Ident s
 
 nonDigitChar :: Parser Char
 nonDigitChar =

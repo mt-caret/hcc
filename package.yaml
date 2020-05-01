@@ -62,3 +62,4 @@ tests:
     - tasty-hunit
     - turtle
     - managed
+    - neat-interpolation
