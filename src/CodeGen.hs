@@ -73,6 +73,15 @@ genCode (Ast.Block xs) = concat <$> traverse genCode xs
 genCode (Ast.Return a) = do
   aCode <- genCode a
   return $ aCode ++ ["  pop rax", "  mov rsp, rbp", "  pop rbp", "  ret"]
+genCode (Ast.Call name args)
+  | length args > 6 =
+    genCodeError $
+      printf "invalid function: %s (only functions with up to six arguments are supported)" name
+genCode (Ast.Call name args) =
+  genCall <$> traverse genCode args
+  where
+    popToReg reg code = code ++ ["  pop " ++ reg]
+    genCall = (++ ["  call " ++ name]) . concat . zipWith popToReg ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]
 genCode (Ast.If p a) = do
   pCode <- genCode p
   endLabel <- createLabel "end"

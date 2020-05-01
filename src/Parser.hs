@@ -80,6 +80,7 @@ return_,
   else_,
   while_,
   for_,
+  comma,
   lparen,
   rparen,
   lbrack,
@@ -102,6 +103,7 @@ if_ = () <$ MP.satisfy ((==) Tokenizer.If . Tokenizer.tokenType)
 else_ = () <$ MP.satisfy ((==) Tokenizer.Else . Tokenizer.tokenType)
 while_ = () <$ MP.satisfy ((==) Tokenizer.While . Tokenizer.tokenType)
 for_ = () <$ MP.satisfy ((==) Tokenizer.For . Tokenizer.tokenType)
+comma = () <$ MP.satisfy ((==) Tokenizer.Comma . Tokenizer.tokenType)
 lparen = () <$ MP.satisfy ((==) Tokenizer.LParen . Tokenizer.tokenType)
 rparen = () <$ MP.satisfy ((==) Tokenizer.RParen . Tokenizer.tokenType)
 lbrack = () <$ MP.satisfy ((==) Tokenizer.LBrack . Tokenizer.tokenType)
@@ -201,8 +203,11 @@ mul = binOpMany base op
 unary :: Ast.AstSym ast => Parser ast
 unary = op <*> primary where op = (id <$ plus) <|> (Ast.negS <$ minus) <|> pure id
 
+call :: Ast.AstSym ast => Parser ast
+call = Ast.callS <$> ident <*> parens (MP.sepBy expr comma)
+
 primary :: Ast.AstSym ast => Parser ast
-primary = number <|> Ast.identS <$> ident <|> parens expr
+primary = number <|> MP.try call <|> Ast.identS <$> ident <|> parens expr
 
 run ::
   Ast.AstSym ast =>

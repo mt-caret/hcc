@@ -5,6 +5,7 @@ data Ast
   | Block [Ast]
   | Assign String Ast
   | Return Ast
+  | Call String [Ast]
   | If Ast Ast
   | IfElse Ast Ast Ast
   | While Ast Ast
@@ -28,6 +29,7 @@ class AstSym a where
   blockS :: [a] -> a
   assignS :: String -> a -> a
   returnS :: a -> a
+  callS :: String -> [a] -> a
   ifS :: a -> a -> a
   ifelseS :: a -> a -> a -> a
   whileS :: a -> a -> a
@@ -50,6 +52,7 @@ instance AstSym Ast where
   blockS = Block
   assignS = Assign
   returnS = Return
+  callS = Call
   ifS = If
   ifelseS = IfElse
   whileS = While

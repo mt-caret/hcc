@@ -34,6 +34,7 @@ data TokenType
   | Else
   | While
   | For
+  | Comma
   | LParen
   | RParen
   | LBrack
@@ -62,6 +63,7 @@ instance Show TokenType where
   show Else = "else"
   show While = "while"
   show For = "for"
+  show Comma = ","
   show LParen = "("
   show RParen = ")"
   show LBrack = "{"
@@ -100,7 +102,8 @@ reserved :: Parser Token
 reserved =
   foldr1 (<|>)
     . fmap (\t -> (Token t <$ matchShow t) <*> getLineStatep)
-    $ [ LParen,
+    $ [ Comma,
+        LParen,
         RParen,
         LBrack,
         RBrack,
