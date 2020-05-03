@@ -11,12 +11,13 @@ import Text.Printf
 codePrelude :: [String]
 codePrelude = [".intel_syntax noprefix", ".global main", "main:"]
 
-popStack, pushStack, cmpThenPush, lThenPush, leThenPush :: [String]
+popStack, pushStack, cmpThenPush, lThenPush, leThenPush, neqThenPush :: [String]
 popStack = ["  pop rdi", "  pop rax"]
 pushStack = ["  push rax"]
 cmpThenPush = ["  sete al", "  movzb rax, al"] ++ pushStack
 lThenPush = ["  setl al", "  movzb rax, al"] ++ pushStack
 leThenPush = ["  setle al", "  movzb rax, al"] ++ pushStack
+neqThenPush = ["  setne al", "  movzb rax, al"] ++ pushStack
 
 data Scope
   = Scope
@@ -157,7 +158,7 @@ genCode (Ast.Eq a b) = do
   return $ abCode ++ ["  cmp rax, rdi"] ++ cmpThenPush
 genCode (Ast.Neq a b) = do
   abCode <- genTwoPop a b
-  return $ abCode ++ ["  setne rax, rdi"] ++ cmpThenPush
+  return $ abCode ++ ["  cmp rax, rdi"] ++ neqThenPush
 
 genTwoPop :: Ast.Ast -> Ast.Ast -> CodeGen [String]
 genTwoPop a b = do

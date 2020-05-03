@@ -44,13 +44,33 @@ functions_ =
       ),
       ( "args1",
         \case
-          [x] -> 0 <$ printToStdout (printf "OK, %d" x)
+          [a] -> 0 <$ printToStdout (printf "OK, %d" a)
           xs -> liftLeft $ "expected 1 argument but found: " ++ show (length xs)
       ),
       ( "args2",
         \case
-          [x, y] -> 0 <$ printToStdout (printf "OK, %d, %d" x y)
-          xs -> liftLeft $ "expected 1 argument but found: " ++ show (length xs)
+          [a, b] -> 0 <$ printToStdout (printf "OK, %d, %d" a b)
+          xs -> liftLeft $ "expected 2 argument but found: " ++ show (length xs)
+      ),
+      ( "args3",
+        \case
+          [a, b, c] -> 0 <$ printToStdout (printf "OK, %d, %d, %d" a b c)
+          xs -> liftLeft $ "expected 3 argument but found: " ++ show (length xs)
+      ),
+      ( "args4",
+        \case
+          [a, b, c, d] -> 0 <$ printToStdout (printf "OK, %d, %d, %d, %d" a b c d)
+          xs -> liftLeft $ "expected 4 argument but found: " ++ show (length xs)
+      ),
+      ( "args5",
+        \case
+          [a, b, c, d, e] -> 0 <$ printToStdout (printf "OK, %d, %d, %d, %d, %d" a b c d e)
+          xs -> liftLeft $ "expected 5 argument but found: " ++ show (length xs)
+      ),
+      ( "args6",
+        \case
+          [a, b, c, d, e, f] -> 0 <$ printToStdout (printf "OK, %d, %d, %d, %d, %d, %d" a b c d e f)
+          xs -> liftLeft $ "expected 6 argument but found: " ++ show (length xs)
       )
     ]
 
@@ -110,7 +130,7 @@ instance Ast.AstSym (AstEval Int) where
   addS a b = (+) <$> a <*> b
   subS a b = (-) <$> a <*> b
   mulS a b = (*) <$> a <*> b
-  divS a b = div <$> a <*> b
+  divS a b = quot <$> a <*> b
   lS a b = fmap boolToInt $ (<) <$> a <*> b
   leqS a b = fmap boolToInt $ (<=) <$> a <*> b
   gS a b = fmap boolToInt $ (>) <$> a <*> b

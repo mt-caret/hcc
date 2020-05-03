@@ -36,6 +36,18 @@ functions =
     void args2(int a, int b) {
       printf("OK, %d, %d\n", a, b);
     }
+    void args3(int a, int b, int c) {
+      printf("OK, %d, %d, %d\n", a, b, c);
+    }
+    void args4(int a, int b, int c, int d) {
+      printf("OK, %d, %d, %d, %d\n", a, b, c, d);
+    }
+    void args5(int a, int b, int c, int d, int e) {
+      printf("OK, %d, %d, %d, %d, %d\n", a, b, c, d, e);
+    }
+    void args6(int a, int b, int c, int d, int e, int f) {
+      printf("OK, %d, %d, %d, %d, %d, %d\n", a, b, c, d, e, f);
+    }
   |]
 
 errorOr :: String -> a -> (ExitCode, Text, Text) -> Either String a
@@ -142,12 +154,15 @@ unitTests =
         ("return 0 < 1;", (1, "")),
         ("return 0 <= 0;", (1, "")),
         ("return 7 - 8 + 3;", (2, "")),
+        ("return 7 - 8 + -3 + 5;", (1, "")),
+        ("return 7 / (3 - 8) * 2 + 3;", (1, "")),
         ("a = 1; b = 2; return (a == b) + a;", (1, "")),
+        ("Weird_var = 1; return Weird_var;", (1, "")),
         ("returnx = 4; return returnx;", (4, "")),
         ("ifx = 4; return ifx;", (4, "")),
-        ("if (1) return 2;", (2, "")),
-        ("if (0) return 2; return 1;", (1, "")),
-        ("if (1) return 2; else return 1;", (2, "")),
+        ("if (1 > 0) return 2;", (2, "")),
+        ("if (0 >= 1) return 2; return 1;", (1, "")),
+        ("if (1 != 0) return 2; else return 1;", (2, "")),
         ("if (0) return 2; else return 1;", (1, "")),
         ("a = 10; while (a) a = a - 1; return a;", (0, "")),
         ("a = 0; for (i = 0; i < 10; i = i + 1) a = a + 2; return a;", (20, "")),
@@ -155,7 +170,11 @@ unitTests =
         ("a = b = 1; b = a + b; return b;", (2, "")),
         ("args0(); return 1;", (1, "OK\n")),
         ("a = 1; args1(a); return 1;", (1, "OK, 1\n")),
-        ("a = 1; b = 2; args2(a, b); return 1;", (1, "OK, 1, 2\n"))
+        ("a = 1; b = 2; args2(a, b); return 1;", (1, "OK, 1, 2\n")),
+        ("a = 1; b = 2; c = 3; args3(a, b, c); return 1;", (1, "OK, 1, 2, 3\n")),
+        ("a = 1; b = 2; c = 3; d = 4; args4(a, b, c, d); return 1;", (1, "OK, 1, 2, 3, 4\n")),
+        ("a = 1; b = 2; c = 3; d = 4; e = 5; args5(a, b, c, d, e); return 1;", (1, "OK, 1, 2, 3, 4, 5\n")),
+        ("a = 1; b = 2; c = 3; d = 4; e = 5; f = 6; args6(a, b, c, d, e, f); return 1;", (1, "OK, 1, 2, 3, 4, 5, 6\n"))
       ]
 
 main :: IO ()
