@@ -101,7 +101,7 @@ runBinary binPath = do
 parse :: Ast.AstSym ast => T.Text -> Either String [ast]
 parse cCode = do
   tokens <- first MP.errorBundlePretty $ Tokenizer.run "args" cCode
-  first MP.errorBundlePretty $ Parser.run "tokens" tokens
+  first MP.errorBundlePretty $ Parser.run "tokens" cCode tokens
 
 toShellLine :: [String] -> Either String (Shell Line)
 toShellLine str =

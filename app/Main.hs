@@ -28,7 +28,7 @@ runCompiler = do
   case args of
     ["compile", arg] -> case Tokenizer.run "args" $ T.pack arg of
       Left err -> ePutStrLn $ MP.errorBundlePretty err
-      Right tokens -> case Parser.run "tokens" tokens of
+      Right tokens -> case Parser.run "tokens" (T.pack arg) tokens of
         Left err -> ePutStrLn $ MP.errorBundlePretty err
         Right program -> case CodeGen.generateCode program of
           Left err -> ePutStrLn err
@@ -37,7 +37,7 @@ runCompiler = do
             forM_ code putStrLn
     ["eval", arg] -> case Tokenizer.run "args" $ T.pack arg of
       Left err -> ePutStrLn $ MP.errorBundlePretty err
-      Right tokens -> case Parser.run "tokens" tokens of
+      Right tokens -> case Parser.run "tokens" (T.pack arg) tokens of
         Left err -> ePutStrLn $ MP.errorBundlePretty err
         Right program -> print $ Evaluator.run program
     _ -> ePutStrLn "invalid arguments"

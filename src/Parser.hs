@@ -1,16 +1,21 @@
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies #-}
 
 module Parser where
 
 import qualified Ast
 import Control.Applicative
+import Control.Monad
 import Data.List
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as NE
+import Data.Maybe
 import Data.Proxy
 import qualified Data.Set as S
+import qualified Data.Text as T
 import qualified Data.Void as V
+import Debug.Trace
 import qualified Text.Megaparsec as MP
 import qualified Text.Megaparsec.Error as MPE
 import qualified Tokenizer
@@ -18,7 +23,12 @@ import Prelude hiding (div)
 
 type Parser = MP.Parsec V.Void CTokens
 
-newtype CTokens = CTokens [Tokenizer.Token]
+data CTokens
+  = CTokens
+      { input :: T.Text,
+        tokens :: [Tokenizer.Token]
+      }
+  deriving (Show)
 
 instance MP.Stream CTokens where
   type Token CTokens = Tokenizer.Token
@@ -28,11 +38,11 @@ instance MP.Stream CTokens where
   chunkToTokens Proxy = id
   chunkLength Proxy = length
   chunkEmpty Proxy = null
-  take1_ (CTokens []) = Nothing
-  take1_ (CTokens (t : ts)) = Just (t, CTokens ts)
-  takeN_ n (CTokens []) | n > 0 = Nothing
-  takeN_ n (CTokens xs) = Just . fmap CTokens $ splitAt n xs
-  takeWhile_ p (CTokens ts) = CTokens <$> go ts []
+  take1_ (CTokens _ []) = Nothing
+  take1_ (CTokens i (t : ts)) = Just (t, CTokens i ts)
+  takeN_ n (CTokens _ []) | n > 0 = Nothing
+  takeN_ n (CTokens i xs) = Just . fmap (CTokens i) $ splitAt n xs
+  takeWhile_ p (CTokens i ts) = CTokens i <$> go ts []
     where
       go [] accum = (reverse accum, [])
       go (x : xs) accum =
@@ -42,7 +52,7 @@ instance MP.Stream CTokens where
   reachOffset o ps =
     ( offendingLine,
       MP.PosState
-        { MP.pstateInput = CTokens rawTokens,
+        { MP.pstateInput = CTokens i rawTokens,
           MP.pstateOffset = totalOffset,
           MP.pstateSourcePos = newSourcePos,
           MP.pstateTabWidth = MP.pstateTabWidth ps,
@@ -50,16 +60,20 @@ instance MP.Stream CTokens where
         }
     )
     where
-      (CTokens rawTokens) = MP.pstateInput ps
+      (CTokens i rawTokens) = traceShowId $ MP.pstateInput ps
       totalOffset = o + MP.pstateOffset ps
       currentToken =
         if totalOffset >= length rawTokens
           then Nothing
           else Just $ rawTokens !! totalOffset
-      offendingLine =
-        maybe "<empty string>" Tokenizer.getLineOfToken currentToken
       newSourcePos =
-        maybe (MP.pstateSourcePos ps) Tokenizer.getSourcePosOfToken currentToken
+        maybe (MP.pstateSourcePos ps) Tokenizer.sourcePos currentToken
+      row = MP.unPos (MP.sourceLine newSourcePos) - 1
+      inputLines = T.lines i
+      offendingLine =
+        if row < length inputLines
+          then T.unpack $ inputLines !! row
+          else "<empty string>"
 
 ident :: Parser String
 ident = MP.token test expected
@@ -212,6 +226,7 @@ primary = number <|> MP.try call <|> Ast.identS <$> ident <|> parens expr
 run ::
   Ast.AstSym ast =>
   String ->
+  T.Text ->
   [Tokenizer.Token] ->
   Either (MP.ParseErrorBundle CTokens V.Void) [ast]
-run name tokens = MP.parse program name (CTokens tokens)
+run name i ts = MP.parse program name (CTokens i ts)

@@ -4,8 +4,6 @@ module Tokenizer
   ( run,
     Token (..),
     TokenType (..),
-    getLineOfToken,
-    getSourcePosOfToken,
   )
 where
 
@@ -18,13 +16,6 @@ import qualified Text.Megaparsec as MP
 import qualified Text.Megaparsec.Char as MP
 
 type Parser = MP.Parsec V.Void T.Text
-
-data LineState
-  = LineState
-      { line :: T.Text,
-        sourcePos :: !MP.SourcePos
-      }
-  deriving (Eq, Ord)
 
 data TokenType
   = Number Int
@@ -53,7 +44,12 @@ data TokenType
   | Semicolon
   deriving (Eq, Ord)
 
-data Token = Token {tokenType :: TokenType, lineState :: !LineState} deriving (Eq, Ord)
+data Token
+  = Token
+      { tokenType :: TokenType,
+        sourcePos :: !MP.SourcePos
+      }
+  deriving (Eq, Ord)
 
 instance Show TokenType where
   show (Number n) = show n
@@ -84,24 +80,13 @@ instance Show TokenType where
 instance Show Token where
   show = show . tokenType
 
-getLineOfToken :: Token -> String
-getLineOfToken = T.unpack . line . lineState
-
-getSourcePosOfToken :: Token -> MP.SourcePos
-getSourcePosOfToken = sourcePos . lineState
-
-getLineStatep :: Parser LineState
-getLineStatep = do
-  ps <- MP.statePosState <$> MP.getParserState
-  return $ LineState (MP.pstateInput ps) (MP.pstateSourcePos ps)
-
 whitespace :: Parser ()
 whitespace = ($> ()) . MP.many . MP.oneOf $ [' ', '\t', '\n']
 
 reserved :: Parser Token
 reserved =
   foldr1 (<|>)
-    . fmap (\t -> (Token t <$ matchShow t) <*> getLineStatep)
+    . fmap (\t -> (Token t <$ matchShow t) <*> MP.getSourcePos)
     $ [ Comma,
         LParen,
         RParen,
@@ -125,7 +110,7 @@ reserved =
 
 ident :: Parser Token
 ident =
-  Token <$> i <*> getLineStatep <?> "variable name"
+  Token <$> i <*> MP.getSourcePos <?> "variable name"
   where
     i = do
       firstChar <- MP.satisfy (\ch -> C.isAsciiLower ch || C.isAsciiUpper ch || ch == '_')
@@ -144,7 +129,7 @@ nonDigitChar =
   MP.satisfy (\ch -> ch /= '0' && C.isDigit ch) <?> "non-zero digit"
 
 number :: Parser Token
-number = Token <$> n <*> getLineStatep
+number = Token <$> n <*> MP.getSourcePos
   where
     numberString =
       ((:) <$> nonDigitChar <*> MP.many MP.digitChar) <|> (pure <$> MP.digitChar)
