@@ -3,27 +3,18 @@
 module CodeGen where
 
 import qualified Ast
+import Control.Applicative
 import Control.Lens
 import Control.Monad.State.Strict
 import qualified Data.Map as M
 import Text.Printf
 
-codePrelude :: [String]
-codePrelude = [".intel_syntax noprefix", ".global main", "main:"]
-
-popStack, pushStack, cmpThenPush, lThenPush, leThenPush, neqThenPush :: [String]
-popStack = ["  pop rdi", "  pop rax"]
-pushStack = ["  push rax"]
-cmpThenPush = ["  sete al", "  movzb rax, al"] ++ pushStack
-lThenPush = ["  setl al", "  movzb rax, al"] ++ pushStack
-leThenPush = ["  setle al", "  movzb rax, al"] ++ pushStack
-neqThenPush = ["  setne al", "  movzb rax, al"] ++ pushStack
-
 data Scope
   = Scope
       { _variables :: M.Map String Int,
         _nextOffset :: Int,
-        _counter :: Int
+        _counter :: Int,
+        _aligned :: Bool
       }
 
 $(makeLenses ''Scope)
@@ -31,11 +22,52 @@ $(makeLenses ''Scope)
 type CodeGen a = StateT Scope (Either String) a
 
 initScope :: Scope
-initScope = Scope M.empty 0 0
+initScope = Scope M.empty 0 0 True
+
+data CanPushPop
+  = Rax
+  | Rdi
+  | Rsi
+  | Rdx
+  | Rcx
+  | R8
+  | R9
+  | Rsp
+  | Rbp
+  | Lit Int
+
+instance Show CanPushPop where
+  show Rax = "rax"
+  show Rdi = "rdi"
+  show Rsi = "rsi"
+  show Rdx = "rdx"
+  show Rcx = "rcx"
+  show R8 = "r8"
+  show R9 = "r9"
+  show Rsp = "rsp"
+  show Rbp = "rbp"
+  show (Lit n) = printf "%d" n
+
+push :: CanPushPop -> CodeGen [String]
+push x = ["  push " ++ show x] <$ modify (over aligned not)
+
+pop :: CanPushPop -> CodeGen [String]
+pop x = ["  pop " ++ show x] <$ modify (over aligned not)
+
+codePrelude :: [String]
+codePrelude = [".intel_syntax noprefix", ".global main", "main:"]
+
+popStack, pushStack, cmpThenPush, lThenPush, leThenPush, neqThenPush :: CodeGen [String]
+popStack = (++) <$> pop Rdi <*> pop Rax
+pushStack = push Rax
+cmpThenPush = (["  sete al", "  movzb rax, al"] ++) <$> pushStack
+lThenPush = (["  setl al", "  movzb rax, al"] ++) <$> pushStack
+leThenPush = (["  setle al", "  movzb rax, al"] ++) <$> pushStack
+neqThenPush = (["  setne al", "  movzb rax, al"] ++) <$> pushStack
 
 createNewVar :: String -> CodeGen ()
 createNewVar name =
-  modify $ \(Scope v no c) -> Scope (M.insert name no v) (no + 8) c
+  modify $ \(Scope v no c a) -> Scope (M.insert name no v) (no + 8) c a
 
 createLabel :: String -> CodeGen String
 createLabel labelName = do
@@ -58,64 +90,88 @@ surround :: String -> [String] -> [String]
 surround name code =
   ["# start of " ++ name] ++ code ++ ["# end of " ++ name]
 
+crunch :: (Traversable t, Applicative f) => t (f [a]) -> f [a]
+crunch = fmap concat . sequenceA
+
 genCode :: Ast.Ast -> CodeGen [String]
-genCode (Ast.Num n) = return [printf "  push %d" n]
+genCode (Ast.Num n) = push (Lit n)
 genCode (Ast.Assign ident rval) = do
   doesVarExist <- M.member ident . view variables <$> get
   unless doesVarExist $ createNewVar ident
   addrCode <- getAddress ident
   rvalCode <- genCode rval
+  pCode <- popStack
+  pushRdi <- push Rdi
   return $
     addrCode
       ++ rvalCode
-      ++ popStack
-      ++ ["  mov [rax], rdi", "  push rdi"]
+      ++ pCode
+      ++ ["  mov [rax], rdi"]
+      ++ pushRdi
 genCode (Ast.Block xs) = concat <$> traverse genCode xs
 genCode (Ast.Return a) = do
   aCode <- genCode a
-  return $ aCode ++ ["  pop rax", "  mov rsp, rbp", "  pop rbp", "  ret"]
+  popRax <- pop Rax
+  popRbp <- pop Rbp
+  return $ aCode ++ popRax ++ ["  mov rsp, rbp"] ++ popRbp ++ ["  ret"]
 genCode (Ast.Call name args)
   | length args > 6 =
     genCodeError $
       printf "invalid function: %s (only functions with up to six arguments are supported)" name
-genCode (Ast.Call name args) =
-  genCall <$> traverse genCode args
-  where
-    popToReg reg code = code ++ ["  pop " ++ reg]
-    genCall = (++ ["  call " ++ name]) . concat . zipWith popToReg ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]
+genCode (Ast.Call name args) = do
+  argCode <-
+    sequenceA
+      . zipWith (liftA2 (++)) (map genCode args)
+      $ map pop [Rdi, Rsi, Rdx, Rcx, R8, R9]
+  isAligned <- view aligned <$> get
+  preCall <- if isAligned then return [] else push (Lit 1)
+  postCall <- if isAligned then return [] else pop R9
+  return $
+    concat argCode ++ preCall ++ ["  call " ++ name] ++ postCall
 genCode (Ast.If p a) = do
   pCode <- genCode p
+  popRax <- pop Rax
   endLabel <- createLabel "end"
   aCode <- genCode a
-  return $ pCode ++ ["  pop rax", "  cmp rax, 0", "je  " ++ endLabel] ++ aCode ++ [endLabel ++ ":"]
+  return $
+    pCode
+      ++ popRax
+      ++ ["  cmp rax, 0", "je  " ++ endLabel]
+      ++ aCode
+      ++ [endLabel ++ ":"]
 genCode (Ast.IfElse p a b) = do
   pCode <- genCode p
+  popRax <- pop Rax
   elseLabel <- createLabel "else"
   endLabel <- createLabel "end"
   aCode <- genCode a
   bCode <- genCode b
   return $
     pCode
-      ++ ["  pop rax", "  cmp rax, 0", "je  " ++ elseLabel]
+      ++ popRax
+      ++ ["  cmp rax, 0", "je  " ++ elseLabel]
       ++ aCode
       ++ ["  jmp " ++ endLabel, elseLabel ++ ":"]
       ++ bCode
       ++ [endLabel ++ ":"]
 genCode (Ast.While p a) = do
   pCode <- genCode p
+  popRax <- pop Rax
   beginLabel <- createLabel "begin"
   endLabel <- createLabel "end"
   aCode <- genCode a
   return $
     [beginLabel ++ ":"]
       ++ pCode
-      ++ ["  pop rax", "  cmp rax, 0", "je  " ++ endLabel]
+      ++ popRax
+      ++ ["  cmp rax, 0", "je  " ++ endLabel]
       ++ aCode
       ++ ["  jmp " ++ beginLabel, endLabel ++ ":"]
 genCode (Ast.For start p end a) = do
   startCode <- maybe (return []) genCode start
   beginLabel <- createLabel "begin"
   pCode <- maybe (return ["  push 1"]) genCode p
+  popRax <- pop Rax
   endCode <- maybe (return []) genCode end
   endLabel <- createLabel "end"
   aCode <- genCode a
@@ -123,52 +179,42 @@ genCode (Ast.For start p end a) = do
     surround "start" startCode
       ++ [beginLabel ++ ":"]
       ++ surround "pCode" pCode
-      ++ ["  pop rax", "  cmp rax, 0", "je  " ++ endLabel]
+      ++ popRax
+      ++ ["  cmp rax, 0", "je  " ++ endLabel]
       ++ surround "aCode" aCode
       ++ surround "endCode" endCode
       ++ ["  jmp " ++ beginLabel, endLabel ++ ":"]
-genCode (Ast.Ident ident) = do
-  addrCode <- getAddress ident
-  return $ addrCode ++ ["  pop rax", "  mov rax, [rax]"] ++ pushStack
-genCode (Ast.Neg a) = do
-  aCode <- genCode a
-  return $ aCode ++ ["  pop rax", "  imul rax, -1"] ++ pushStack
-genCode (Ast.Add a b) = do
-  abCode <- genTwoPop a b
-  return $ abCode ++ ["  add rax, rdi"] ++ pushStack
-genCode (Ast.Sub a b) = do
-  abCode <- genTwoPop a b
-  return $ abCode ++ ["  sub rax, rdi"] ++ pushStack
-genCode (Ast.Mul a b) = do
-  abCode <- genTwoPop a b
-  return $ abCode ++ ["  imul rax, rdi"] ++ pushStack
-genCode (Ast.Div a b) = do
-  abCode <- genTwoPop a b
-  return $ abCode ++ ["  cqo", "  idiv rdi"] ++ pushStack
-genCode (Ast.L a b) = do
-  abCode <- genTwoPop a b
-  return $ abCode ++ ["  cmp rax, rdi"] ++ lThenPush
-genCode (Ast.LEq a b) = do
-  abCode <- genTwoPop a b
-  return $ abCode ++ ["  cmp rax, rdi"] ++ leThenPush
+genCode (Ast.Ident ident) =
+  crunch [getAddress ident, return ["  pop rax", "  mov rax, [rax]"], pushStack]
+genCode (Ast.Neg a) =
+  crunch [genCode a, return ["  pop rax", "  imul rax, -1"], pushStack]
+genCode (Ast.Add a b) =
+  crunch [genTwoPop a b, return ["  add rax, rdi"], pushStack]
+genCode (Ast.Sub a b) =
+  crunch [genTwoPop a b, return ["  sub rax, rdi"], pushStack]
+genCode (Ast.Mul a b) =
+  crunch [genTwoPop a b, return ["  imul rax, rdi"], pushStack]
+genCode (Ast.Div a b) =
+  crunch [genTwoPop a b, return ["  cqo", "  idiv rdi"], pushStack]
+genCode (Ast.L a b) =
+  crunch [genTwoPop a b, return ["  cmp rax, rdi"], lThenPush]
+genCode (Ast.LEq a b) =
+  crunch [genTwoPop a b, return ["  cmp rax, rdi"], leThenPush]
 genCode (Ast.G a b) = genCode (Ast.L b a)
 genCode (Ast.GEq a b) = genCode (Ast.LEq b a)
-genCode (Ast.Eq a b) = do
-  abCode <- genTwoPop a b
-  return $ abCode ++ ["  cmp rax, rdi"] ++ cmpThenPush
-genCode (Ast.Neq a b) = do
-  abCode <- genTwoPop a b
-  return $ abCode ++ ["  cmp rax, rdi"] ++ neqThenPush
+genCode (Ast.Eq a b) =
+  crunch [genTwoPop a b, return ["  cmp rax, rdi"], cmpThenPush]
+genCode (Ast.Neq a b) =
+  crunch [genTwoPop a b, return ["  cmp rax, rdi"], neqThenPush]
 
 genTwoPop :: Ast.Ast -> Ast.Ast -> CodeGen [String]
-genTwoPop a b = do
-  aCode <- genCode a
-  bCode <- genCode b
-  return $ aCode ++ bCode ++ popStack
+genTwoPop a b =
+  crunch [genCode a, genCode b, popStack]
 
 generateCode :: [Ast.Ast] -> Either String [String]
 generateCode program = do
-  (code, scope) <- runStateT (traverse genCode program) initScope
+  let genCode' ast = (++) <$> genCode ast <*> pop Rax
+  (code, scope) <- runStateT (traverse genCode' program) initScope
   return $
     codePrelude
       ++ [ "  push rbp",
@@ -176,5 +222,5 @@ generateCode program = do
            "  sub rsp, " ++ show (scope ^. nextOffset),
            "# end of prelude"
          ]
-      ++ concatMap (\c -> c ++ ["  pop rax"]) code
+      ++ concat code
       ++ ["# start of postlude", "  mov rsp, rbp", "  pop rbp", "  ret"]
